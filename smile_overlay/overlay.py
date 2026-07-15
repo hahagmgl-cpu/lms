@@ -63,10 +63,10 @@ class SmileOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, enable)
 
     def _check_move_key(self):
-        """Alt 키 감지"""
+        """Alt 키 감지 (Windows 전용)"""
         try:
             alt_held = bool(ctypes.windll.user32.GetAsyncKeyState(VK_MENU) & 0x8000)
-        except Exception:
+        except (AttributeError, OSError):
             return
 
         if alt_held and not self.edit_mode and not self.calibration_mode:
@@ -293,7 +293,7 @@ class SmileOverlay(QWidget):
             if was_move_drag:
                 try:
                     alt_held = bool(ctypes.windll.user32.GetAsyncKeyState(VK_MENU) & 0x8000)
-                except Exception:
+                except (AttributeError, OSError):
                     alt_held = False
                 if not alt_held:
                     self._move_mode = False

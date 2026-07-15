@@ -2,8 +2,8 @@
 """Smile Design Pro — exocad 치과 설계 보조 오버레이 메인 엔트리포인트"""
 import sys
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
-from smile_overlay.config import OverlayState, load_autosave, save_autosave
+from PyQt6.QtCore import Qt, QTimer
+from smile_overlay.config import OverlayState, load_autosave, save_autosave, GUIDE_DEFS
 from smile_overlay.overlay import SmileOverlay
 from smile_overlay.panel import ControlPanel
 from smile_overlay.hotkeys import GlobalHotkeys
@@ -33,8 +33,16 @@ def main():
     hotkeys = GlobalHotkeys()
     hotkeys.install(app)
 
+    # 단축키 핸들러
+    def toggle_guide(key):
+        state.styles[key].visible = not state.styles[key].visible
+        overlay.state_changed.emit()
+
+    def toggle_overlay():
+        overlay.setVisible(not overlay.isVisible())
+
     # 가이드별 단축키
-    for key, label, *_ in __import__('smile_overlay.config', fromlist=['GUIDE_DEFS']).GUIDE_DEFS:
+    for key, label, *_ in GUIDE_DEFS:
         hotkey_str = state.hotkeys.get(f"guide:{key}")
         if hotkey_str:
             hotkeys.register(hotkey_str, lambda k=key: toggle_guide(k))
@@ -43,18 +51,10 @@ def main():
     hotkeys.register(state.hotkeys.get("toggle_overlay", "Ctrl+Alt+H"), toggle_overlay)
     hotkeys.register(state.hotkeys.get("toggle_edit", "Ctrl+Alt+E"), lambda: overlay.toggle_edit())
 
-    def toggle_guide(key):
-        state.styles[key].visible = not state.styles[key].visible
-        overlay.state_changed.emit()
-
-    def toggle_overlay():
-        overlay.setVisible(not overlay.isVisible())
-
     # 상태 저장 타이머
     def save_state():
         save_autosave(state)
 
-    from PyQt6.QtCore import QTimer
     save_timer = QTimer()
     save_timer.timeout.connect(save_state)
     save_timer.start(5000)  # 5초마다 자동 저장
