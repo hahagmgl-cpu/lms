@@ -124,13 +124,66 @@ async function login(page, id, pw) {
   return url;
 }
 
-// 첫 클릭/타이핑 시 뜨는 "저장된 글이 있습니다" 등의 다이얼로그 자동 처리
+// 에디터 다이얼로그 자동 처리:
+// - "저장된 글이 있습니다. 이어서 작성하시겠습니까?" → 취소(새 글로 시작)
+// - "작성 모드를 변경하시겠습니까?" (HTML 모드 전환 시) → 확인
 function autoDismissDialogs(page) {
   page.on('dialog', async (dialog) => {
-    console.log(`   [dialog] ${dialog.type()}: ${dialog.message()} → 취소(새 글 작성)`);
-    // "이어서 작성하시겠습니까?" → 취소를 눌러 새 글로 시작
-    await dialog.dismiss().catch(() => {});
+    const msg = dialog.message();
+    const accept = /모드/.test(msg);
+    console.log(`   [dialog] ${dialog.type()}: ${msg} → ${accept ? '확인' : '취소'}`);
+    if (accept) await dialog.accept().catch(() => {});
+    else await dialog.dismiss().catch(() => {});
   });
+}
+
+// 에디터를 HTML 모드로 전환 (CodeMirror 편집기 사용)
+// 우측 상단 "기본모드" 드롭다운 → HTML 선택. 확인 다이얼로그는 autoDismissDialogs 가 수락.
+async function switchToHtmlMode(page) {
+  const already = await page.evaluate(() => !!document.querySelector('.CodeMirror'));
+  if (already) return true;
+
+  const opener = page
+    .locator('#editor-mode-layer-btn-open, button:has-text("기본모드"), [class*="mode"] button')
+    .first();
+  if (!(await opener.isVisible().catch(() => false))) {
+    console.log('   모드 전환 버튼을 찾지 못했습니다.');
+    return false;
+  }
+  await opener.click();
+  await page.waitForTimeout(600);
+
+  const htmlItem = page
+    .locator('#editor-mode-html, [data-value="html"], a:has-text("HTML"), span:has-text("HTML"), div:has-text("HTML")')
+    .last();
+  await htmlItem.click().catch(async () => {
+    await page.evaluate(() => {
+      const els = Array.from(document.querySelectorAll('a, span, div, button, li'));
+      const el = els.find((e) => e.childElementCount === 0 && e.textContent.trim() === 'HTML' && e.offsetParent !== null);
+      if (el) el.click();
+    });
+  });
+  await page.waitForTimeout(2000);
+
+  return page.evaluate(() => !!document.querySelector('.CodeMirror'));
+}
+
+// HTML 모드(CodeMirror)의 본문 읽기/쓰기
+async function cmGetValue(page) {
+  return page.evaluate(() => {
+    const cm = document.querySelector('.CodeMirror');
+    return cm && cm.CodeMirror ? cm.CodeMirror.getValue() : null;
+  });
+}
+
+async function cmSetValue(page, html) {
+  return page.evaluate((v) => {
+    const cm = document.querySelector('.CodeMirror');
+    if (!cm || !cm.CodeMirror) return false;
+    cm.CodeMirror.setValue(v);
+    if (cm.CodeMirror.refresh) cm.CodeMirror.refresh();
+    return true;
+  }, html);
 }
 
 /**
@@ -145,7 +198,7 @@ function autoDismissDialogs(page) {
  *  - reserveAt: 예약발행 시각 (Date 또는 ISO 문자열, publish==='reserve'일 때)
  */
 async function writePost(page, opts) {
-  const { blog, title, contentHtml, tags = [], publish = 'draft', reserveAt } = opts;
+  const { blog, title, contentHtml, tags = [], publish = 'draft', reserveAt, images = [] } = opts;
 
   autoDismissDialogs(page);
 
@@ -170,25 +223,40 @@ async function writePost(page, opts) {
   await titleInput.fill(title);
   await shot(page, 'post-02-title');
 
-  console.log('3) 본문 입력');
-  // 1순위: TinyMCE API 직접 호출 (신 에디터는 TinyMCE 기반)
-  const setViaTiny = await page
-    .evaluate((html) => {
-      if (window.tinymce && window.tinymce.activeEditor) {
-        window.tinymce.activeEditor.setContent(html);
-        return true;
-      }
-      return false;
-    }, contentHtml)
-    .catch(() => false);
+  // 이미지가 있으면 기본모드에서 먼저 업로드 (카카오 서버 업로드 → [##_Image|kage@...] 치환문 생성)
+  let bodyHtml = contentHtml;
+  if (images.length) {
+    console.log(`2.5) 이미지 ${images.length}개 업로드`);
+    await uploadImagesAndCollect(page, images);
+  }
 
-  if (!setViaTiny) {
-    // 2순위: 에디터 iframe 안의 body에 직접 타이핑
-    console.log('   TinyMCE API 미탐지 → iframe 직접 입력 시도');
+  console.log('3) 본문 입력 (HTML 모드)');
+  // TinyMCE setContent 는 화면에는 보여도 티스토리 내부 저장 상태에 반영되지 않아
+  // 발행 시 본문이 비는 문제가 있음 → HTML 모드(CodeMirror)로 전환해서 확실하게 입력.
+  const htmlMode = await switchToHtmlMode(page);
+
+  if (htmlMode) {
+    // 이미지 업로드로 이미 삽입된 kage@ 치환문을 회수해서 본문의 {{IMAGE_n}} 위치에 배치
+    if (images.length) {
+      const current = (await cmGetValue(page)) || '';
+      const placeholders = extractImagePlaceholders(current);
+      console.log(`   업로드된 이미지 치환문 ${placeholders.length}개 발견`);
+      bodyHtml = mergeImagesIntoBody(contentHtml, placeholders, images);
+    }
+    const ok = await cmSetValue(page, bodyHtml);
+    if (!ok) throw new Error('CodeMirror 에 본문을 쓰지 못했습니다.');
+    const written = (await cmGetValue(page)) || '';
+    console.log(`   본문 입력 확인: ${written.length}자`);
+    if (written.length < Math.min(bodyHtml.length, 10)) {
+      throw new Error('본문이 입력되지 않았습니다. shots/post-03-content.png 확인.');
+    }
+  } else {
+    // 폴백: 에디터 iframe 안의 body에 직접 타이핑 (서식 없는 텍스트)
+    console.log('   HTML 모드 전환 실패 → iframe 직접 타이핑 폴백');
     const frame = page.frameLocator('#editor-tistory_ifr, iframe[id*="_ifr"]').first();
     const body = frame.locator('body#tinymce, body[contenteditable="true"], body').first();
     await body.click();
-    const plain = contentHtml.replace(/<[^>]+>/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+    const plain = bodyHtml.replace(/<[^>]+>/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
     await page.keyboard.type(plain, { delay: 5 });
   }
   await page.waitForTimeout(1500);
@@ -404,4 +472,122 @@ async function setReserveTime(page, when) {
   await page.waitForTimeout(700);
 }
 
-module.exports = { launch, saveState, isLoggedIn, login, writePost, shot, STATE_FILE };
+// ---------------------------------------------------------------------------
+// 이미지 처리
+// 티스토리는 이미지를 업로드하면 카카오 CDN(kage@...)으로 올리고 본문에는
+// [##_Image|kage@...|CDM|1.3|{...옵션 JSON...}_##] 치환문을 넣는다.
+// 흐름: 기본모드에서 업로드 → HTML 모드로 전환해 치환문 회수 →
+//       옵션 JSON에 alt/caption/filename 주입 → 본문의 {{IMAGE_n}} 위치에 배치.
+// ---------------------------------------------------------------------------
+
+// 기본모드 에디터에서 이미지 파일들을 업로드 (치환문은 이후 HTML 모드에서 회수)
+async function uploadImagesAndCollect(page, images) {
+  const countEditorImages = () =>
+    page.evaluate(() => {
+      const ifr = document.querySelector('iframe[id*="_ifr"]');
+      if (!ifr || !ifr.contentDocument) return -1;
+      return ifr.contentDocument.querySelectorAll('img').length;
+    });
+
+  for (let i = 0; i < images.length; i++) {
+    const img = images[i];
+    console.log(`   업로드 ${i + 1}/${images.length}: ${img.file}`);
+    const before = await countEditorImages();
+
+    // 1차: 숨겨진 파일 인풋에 직접 주입
+    let uploaded = false;
+    const direct = page.locator('input[type="file"]');
+    if ((await direct.count()) > 0) {
+      try {
+        await direct.first().setInputFiles(img.file);
+        uploaded = true;
+      } catch (e) {
+        console.log(`   파일 인풋 직접 주입 실패(${e.message}) → 사진 버튼 시도`);
+      }
+    }
+    // 2차: 사진 툴바 버튼 클릭 → 파일 선택 다이얼로그
+    if (!uploaded) {
+      const btn = page
+        .locator('[aria-label*="사진"], button[title*="사진"], .mce-i-image, #mceu_0 button')
+        .first();
+      const [chooser] = await Promise.all([
+        page.waitForEvent('filechooser', { timeout: 15000 }),
+        btn.click(),
+      ]);
+      await chooser.setFiles(img.file);
+    }
+
+    // 업로드 완료 대기: 에디터 안의 이미지 개수가 늘어날 때까지
+    await page
+      .waitForFunction(
+        (prev) => {
+          const ifr = document.querySelector('iframe[id*="_ifr"]');
+          if (!ifr || !ifr.contentDocument) return false;
+          return ifr.contentDocument.querySelectorAll('img').length > prev;
+        },
+        before,
+        { timeout: 30000 }
+      )
+      .catch(() => console.log('   업로드 완료를 감지하지 못했습니다 (계속 진행).'));
+    await page.waitForTimeout(1500);
+  }
+  await shot(page, 'post-02b-images-uploaded');
+}
+
+// 본문(HTML 모드 텍스트)에서 이미지 치환문 추출
+function extractImagePlaceholders(html) {
+  return html.match(/\[##_Image\|[\s\S]*?_##\]/g) || [];
+}
+
+// 치환문의 옵션 JSON에 alt / caption / filename 주입
+function enhancePlaceholder(ph, meta = {}) {
+  const m = ph.match(/^(\[##_Image\|[\s\S]*?\|CDM\|[\d.]+\|)(\{[\s\S]*\})(_##\])$/);
+  if (!m) return ph;
+  let opts;
+  try {
+    opts = JSON.parse(m[2]);
+  } catch {
+    return ph;
+  }
+  if (meta.alt) opts.alt = meta.alt;
+  if (meta.caption) opts.caption = meta.caption;
+  if (meta.filename) opts.filename = meta.filename;
+  return m[1] + JSON.stringify(opts) + m[3];
+}
+
+// 업로드로 생긴 치환문(순서대로)을 images 메타와 매칭해 본문의 {{IMAGE_n}} 자리에 배치.
+// 토큰이 없는 이미지는 본문 끝에 덧붙인다.
+function mergeImagesIntoBody(bodyHtml, placeholders, images) {
+  let out = bodyHtml;
+  placeholders.forEach((ph, i) => {
+    const meta = images[i] || {};
+    const enhanced = enhancePlaceholder(ph, {
+      alt: meta.alt,
+      caption: meta.caption,
+      filename: meta.filename || (meta.file ? path.basename(meta.file) : undefined),
+    });
+    const token = `{{IMAGE_${i}}}`;
+    const wrapped = new RegExp(`<p>\\s*\\{\\{IMAGE_${i}\\}\\}\\s*</p>`);
+    if (wrapped.test(out)) {
+      out = out.replace(wrapped, `<p>${enhanced}</p>`); // 이미 <p>로 감싸져 있으면 그대로 교체
+    } else if (out.includes(token)) {
+      out = out.replace(token, `<p>${enhanced}</p>`);
+    } else {
+      out += `\n<p>${enhanced}</p>`;
+    }
+  });
+  return out.replace(/\{\{IMAGE_\d+\}\}/g, ''); // 매칭 안 된 토큰 정리
+}
+
+module.exports = {
+  launch,
+  saveState,
+  isLoggedIn,
+  login,
+  writePost,
+  shot,
+  STATE_FILE,
+  extractImagePlaceholders,
+  enhancePlaceholder,
+  mergeImagesIntoBody,
+};

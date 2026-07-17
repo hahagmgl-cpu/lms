@@ -6,7 +6,13 @@
 //   node automation/post.js --file content/sample-post.json --publish reserve --at "2026-07-18T09:00"
 //   node automation/post.js --title "제목" --content "<p>본문</p>" --publish now
 //
-// JSON 파일 형식: { "title": "...", "html": "<p>...</p>", "tags": ["태그1", "태그2"] }
+// JSON 파일 형식:
+// {
+//   "title": "...",
+//   "html": "<p>본문</p><p>{{IMAGE_0}}</p>",          // {{IMAGE_n}} 자리에 n번째 이미지 배치
+//   "tags": ["태그1", "태그2"],
+//   "images": [{ "file": "images/a.png", "alt": "대체텍스트", "caption": "캡션" }]
+// }
 // (Claude API 등으로 생성한 콘텐츠를 이 형식으로 저장하면 그대로 발행 가능)
 
 const fs = require('fs');
@@ -38,12 +44,29 @@ function parseArgs(argv) {
   let title = args.title;
   let contentHtml = args.content;
   let tags = args.tags ? String(args.tags).split(',').map((t) => t.trim()) : [];
+  let images = args.images
+    ? String(args.images).split(',').map((f) => ({ file: f.trim() }))
+    : [];
 
   if (args.file) {
     const data = JSON.parse(fs.readFileSync(args.file, 'utf8'));
     title = title || data.title;
     contentHtml = contentHtml || data.html || data.content;
     if (data.tags && !tags.length) tags = data.tags;
+    if (data.images && !images.length) {
+      // 이미지 경로는 JSON 파일 위치 기준 상대경로 허용
+      const baseDir = require('path').dirname(require('path').resolve(args.file));
+      images = data.images.map((img) => ({
+        ...img,
+        file: require('path').isAbsolute(img.file) ? img.file : require('path').join(baseDir, img.file),
+      }));
+    }
+  }
+  for (const img of images) {
+    if (!fs.existsSync(img.file)) {
+      console.error(`이미지 파일이 없습니다: ${img.file}`);
+      process.exit(1);
+    }
   }
   if (!title || !contentHtml) {
     console.error('제목과 본문이 필요합니다: --title/--content 또는 --file <json>');
@@ -76,7 +99,7 @@ function parseArgs(argv) {
       await saveState(context);
     }
 
-    const result = await writePost(page, { blog, title, contentHtml, tags, publish, reserveAt });
+    const result = await writePost(page, { blog, title, contentHtml, tags, publish, reserveAt, images });
     console.log('\n완료:', JSON.stringify(result, null, 2));
   } finally {
     await browser.close();

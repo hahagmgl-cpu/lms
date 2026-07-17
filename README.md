@@ -65,7 +65,17 @@ node automation/post.js --file content/sample-post.json --publish reserve
 
 각 단계의 스크린샷이 `shots/` 에 저장되므로, 셀렉터가 안 맞아 실패하면 스크린샷으로 어느 단계에서 멈췄는지 확인할 수 있습니다.
 
-### 3. Claude API로 글 생성 → 발행 (콘텐츠 자동화)
+### 3. 이미지 포함 발행 (alt/캡션/파일명 자동 주입)
+
+```bash
+node automation/post.js --file content/sample-post-with-image.json --publish reserve
+```
+
+본문의 `{{IMAGE_0}}` 토큰 위치에 업로드된 이미지가 들어가고, 치환문 `[##_Image|kage@...|CDM|1.3|{...}_##]` 의 옵션 JSON에 `alt`/`caption`/`filename` 이 자동으로 주입됩니다. 자세한 구조와 이미지 생성 계획은 [docs/image-pipeline-plan.md](docs/image-pipeline-plan.md) 참고.
+
+> 본문 입력은 **HTML 모드(CodeMirror)** 로 전환해서 넣습니다. TinyMCE API 방식은 화면에는 보여도 저장 시 본문이 비는 문제가 있어 사용하지 않습니다.
+
+### 4. Claude API로 글 생성 → 발행 (콘텐츠 자동화)
 
 ```bash
 node automation/generate.js "여름 제철 음식 추천" content/generated.json
