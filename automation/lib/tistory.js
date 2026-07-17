@@ -227,76 +227,181 @@ async function writePost(page, opts) {
   await page.waitForTimeout(2500);
   await shot(page, 'post-04-publish-layer');
 
-  console.log('6) 공개 설정: 공개');
-  const publicRadio = page.locator('#open20, label[for="open20"], input[value="20"]').first();
-  if (await publicRadio.isVisible().catch(() => false)) {
-    await publicRadio.click().catch(async () => {
-      await page.locator('label[for="open20"]').click();
-    });
-  } else {
-    const publicLabel = page.locator('label:has-text("공개")').first();
-    if (await publicLabel.isVisible().catch(() => false)) await publicLabel.click();
-  }
-  await page.waitForTimeout(800);
+  console.log('6) 공개 설정: 공개 (기본값이 비공개이므로 반드시 변경)');
+  await selectPublicVisibility(page);
+  await shot(page, 'post-05-visibility');
 
   if (publish === 'reserve') {
     const when = reserveAt instanceof Date ? reserveAt : new Date(reserveAt);
     if (isNaN(when.getTime())) throw new Error(`예약 시각이 올바르지 않습니다: ${reserveAt}`);
     console.log('7) 예약발행 설정:', when.toString());
-
-    // "예약" 옵션 활성화 (라디오/버튼/탭 등 여러 형태 대응)
-    const reserveToggle = page
-      .locator('#reserve, input[name="publishTime"][value="reserve"], label:has-text("예약"), button:has-text("예약")')
-      .first();
-    await reserveToggle.waitFor({ timeout: 10000 });
-    await reserveToggle.click();
-    await page.waitForTimeout(1200);
-    await shot(page, 'post-05-reserve-open');
-
-    // 날짜 입력 (YYYY-MM-DD)
-    const dateStr = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(
-      when.getDate()
-    ).padStart(2, '0')}`;
-    const hh = String(when.getHours()).padStart(2, '0');
-    const mm = String(when.getMinutes()).padStart(2, '0');
-
-    const dateInput = page
-      .locator('#reserve-date, input[type="date"], input[placeholder*="날짜"]')
-      .first();
-    if (await dateInput.isVisible().catch(() => false)) {
-      await dateInput.fill(dateStr);
-    } else {
-      console.log('   날짜 입력란을 찾지 못했습니다. 스크린샷을 확인하세요.');
-    }
-
-    // 시/분: select 또는 텍스트 입력 두 형태 모두 대응
-    const hourSel = page.locator('#reserve-hour, select[name*="hour"], .reserve_hour select').first();
-    const minSel = page.locator('#reserve-min, select[name*="min"], .reserve_min select').first();
-    if (await hourSel.isVisible().catch(() => false)) {
-      await hourSel.selectOption(hh).catch(() => hourSel.selectOption(String(when.getHours())));
-      if (await minSel.isVisible().catch(() => false)) {
-        await minSel.selectOption(mm).catch(() => minSel.selectOption(String(when.getMinutes())));
-      }
-    } else {
-      const hourInp = page.locator('input[name*="hour"], input[placeholder*="시"]').first();
-      const minInp = page.locator('input[name*="min"], input[placeholder*="분"]').first();
-      if (await hourInp.isVisible().catch(() => false)) await hourInp.fill(hh);
-      if (await minInp.isVisible().catch(() => false)) await minInp.fill(mm);
-    }
-    await page.waitForTimeout(800);
+    await setReserveTime(page, when);
     await shot(page, 'post-06-reserve-set');
   }
 
   console.log('8) 발행 버튼 클릭');
-  const publishBtn = page
-    .locator('#publish-btn, button:has-text("예약 발행"), button:has-text("발행"), button:has-text("공개 발행")')
+  // 공개+즉시 → "공개 발행", 공개+예약 → "예약 발행". "비공개 저장"은 절대 클릭하지 않음.
+  let publishBtn = page
+    .locator('button:has-text("예약 발행"), button:has-text("공개 발행"), button:has-text("보호 발행")')
     .first();
+  if (!(await publishBtn.isVisible().catch(() => false))) {
+    publishBtn = page
+      .locator('button', { hasText: /발행/ })
+      .filter({ hasNotText: '비공개' })
+      .first();
+  }
+  if (!(await publishBtn.isVisible().catch(() => false))) {
+    await shot(page, 'post-07-no-publish-btn');
+    throw new Error(
+      '발행 버튼을 찾지 못했습니다. 공개 설정이 적용되지 않아 "비공개 저장"만 보이는 상태일 수 있습니다. ' +
+        'shots/post-05-visibility.png 와 shots/post-07-no-publish-btn.png 를 확인하세요.'
+    );
+  }
+  const btnLabel = (await publishBtn.textContent().catch(() => '')).trim();
+  console.log(`   클릭할 버튼: "${btnLabel}"`);
   await publishBtn.click();
   await page.waitForTimeout(5000);
   await shot(page, 'post-07-published');
   console.log('   발행 후 URL:', page.url());
 
-  return { status: publish, url: page.url() };
+  return { status: publish, button: btnLabel, url: page.url() };
+}
+
+// 화면에 보이는 요소 중 텍스트가 정확히 일치하는 것을 클릭 (커스텀 라디오/버튼 대응)
+async function clickExactText(page, text) {
+  return page.evaluate((t) => {
+    const els = Array.from(document.querySelectorAll('label, button, span, a, em, strong, div'));
+    const el = els.find(
+      (e) => e.childElementCount === 0 && e.textContent.trim() === t && e.offsetParent !== null
+    );
+    if (el) {
+      el.click();
+      return true;
+    }
+    return false;
+  }, text);
+}
+
+// 발행 레이어 하단의 저장/발행 버튼 텍스트 확인 ("비공개 저장" ↔ "공개 발행" ↔ "예약 발행")
+async function bottomButtonText(page) {
+  return page.evaluate(() => {
+    const btns = Array.from(document.querySelectorAll('button')).filter(
+      (b) => /발행|저장/.test(b.textContent) && b.offsetParent !== null
+    );
+    const b = btns[btns.length - 1];
+    return b ? b.textContent.trim() : '';
+  });
+}
+
+// "공개" 라디오 선택 + 실제로 적용됐는지 하단 버튼 텍스트로 검증
+async function selectPublicVisibility(page) {
+  await clickExactText(page, '공개');
+  await page.waitForTimeout(700);
+  let btn = await bottomButtonText(page);
+  console.log(`   하단 버튼 상태: "${btn}"`);
+
+  if (!btn || /비공개/.test(btn)) {
+    console.log('   라벨 클릭이 안 먹힘 → 라디오 인풋 직접 클릭 재시도');
+    await page.evaluate(() => {
+      const byId = document.querySelector('#open20');
+      const byVal = document.querySelector('input[type="radio"][value="20"]');
+      const byLabel = Array.from(document.querySelectorAll('input[type="radio"]')).find((x) => {
+        const lb = x.id && document.querySelector(`label[for="${x.id}"]`);
+        return lb && lb.textContent.trim() === '공개';
+      });
+      const r = byId || byVal || byLabel;
+      if (r) {
+        r.click();
+        r.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    await page.waitForTimeout(700);
+    btn = await bottomButtonText(page);
+    console.log(`   하단 버튼 상태(재시도 후): "${btn}"`);
+  }
+
+  if (/비공개/.test(btn)) {
+    await shot(page, 'post-05-visibility-fail');
+    throw new Error(
+      '공개 설정 선택에 실패했습니다 (여전히 "비공개 저장" 상태). shots/post-05-visibility-fail.png 를 확인하세요.'
+    );
+  }
+}
+
+// 발행일 → "예약" 선택 후 날짜/시간 입력
+async function setReserveTime(page, when) {
+  // "예약" 옵션 클릭 (발행일 영역이 접혀 있으면 먼저 펼친다)
+  let ok = await clickExactText(page, '예약');
+  if (!ok) {
+    await clickExactText(page, '발행일');
+    await page.waitForTimeout(700);
+    ok = await clickExactText(page, '예약');
+  }
+  if (!ok) {
+    await shot(page, 'post-06-reserve-fail');
+    throw new Error('발행 레이어에서 "예약" 옵션을 찾지 못했습니다. shots/post-06-reserve-fail.png 확인.');
+  }
+  await page.waitForTimeout(1000);
+  await shot(page, 'post-06-reserve-open');
+
+  const dateStr = `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(
+    when.getDate()
+  ).padStart(2, '0')}`;
+  const hh = String(when.getHours()).padStart(2, '0');
+  const mm = String(when.getMinutes()).padStart(2, '0');
+
+  // React 입력란에도 확실히 반영되도록 네이티브 setter + input/change 이벤트 사용
+  const applied = await page.evaluate(
+    ({ dateStr, hh, mm }) => {
+      const visible = (el) => el.offsetParent !== null;
+      const setVal = (el, v) => {
+        const proto = el instanceof HTMLSelectElement ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v);
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      const report = { date: null, hour: null, min: null };
+
+      // 날짜: input[type=date] 또는 날짜 형식 값/플레이스홀더를 가진 인풋
+      const dateInp =
+        Array.from(document.querySelectorAll('input[type="date"]')).find(visible) ||
+        Array.from(document.querySelectorAll('input')).find(
+          (i) =>
+            visible(i) &&
+            (/\d{4}\s*[-./]\s*\d{1,2}\s*[-./]\s*\d{1,2}/.test(i.value) ||
+              /\d{4}\s*[-./]/.test(i.placeholder || ''))
+        );
+      if (dateInp) {
+        setVal(dateInp, dateInp.type === 'date' ? dateStr : dateStr.replace(/-/g, '. '));
+        report.date = dateInp.value;
+      }
+
+      // 시/분: 숫자 옵션을 가진 select 들 (통상 순서대로 시 → 분)
+      const numSels = Array.from(document.querySelectorAll('select')).filter(
+        (s) => visible(s) && Array.from(s.options).some((o) => /^\d{1,2}$/.test(o.value.trim()))
+      );
+      const pickNearest = (sel, target) => {
+        const opts = Array.from(sel.options)
+          .map((o) => o.value.trim())
+          .filter((v) => /^\d{1,2}$/.test(v));
+        let best = opts[0];
+        for (const v of opts) {
+          if (Math.abs(Number(v) - Number(target)) < Math.abs(Number(best) - Number(target))) best = v;
+        }
+        setVal(sel, best);
+        return best;
+      };
+      if (numSels[0]) report.hour = pickNearest(numSels[0], hh);
+      if (numSels[1]) report.min = pickNearest(numSels[1], mm);
+      return report;
+    },
+    { dateStr, hh, mm }
+  );
+  console.log('   예약 입력 결과:', JSON.stringify(applied));
+  if (!applied.date && applied.hour === null) {
+    console.log('   날짜/시간 입력란을 찾지 못했습니다. 기본값(현재 시각 근처)으로 예약될 수 있습니다.');
+  }
+  await page.waitForTimeout(700);
 }
 
 module.exports = { launch, saveState, isLoggedIn, login, writePost, shot, STATE_FILE };
