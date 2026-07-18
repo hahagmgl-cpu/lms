@@ -28,10 +28,19 @@ async function shot(page, name) {
   }
 }
 
+// 실행할 크로미움 경로 결정:
+// 1) CHROME_PATH 환경변수  2) 미리 설치된 /opt/pw-browsers/chromium (원격 환경)
+// 3) undefined → Playwright가 자체 설치본(npx playwright install)을 찾음 (사용자 PC 기본)
+function resolveExecutablePath() {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  if (fs.existsSync('/opt/pw-browsers/chromium')) return '/opt/pw-browsers/chromium';
+  return undefined;
+}
+
 async function launch() {
   const browser = await chromium.launch({
     headless: process.env.HEADLESS !== '0',
-    executablePath: process.env.CHROME_PATH || undefined,
+    executablePath: resolveExecutablePath(),
     args: ['--disable-blink-features=AutomationControlled'],
   });
   const ctxOptions = {

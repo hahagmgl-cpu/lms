@@ -77,40 +77,55 @@ function buildPrompt(keyword, { imgs, audience, intent }) {
 }`;
 }
 
-(async () => {
-  const args = parseArgs(process.argv);
-  const keyword = args._[0];
-  if (!keyword) {
-    console.error('사용법: node automation/generate.js "키워드" [--provider openai|gemini|claude] [--out 파일] [--imgs N]');
-    process.exit(1);
-  }
-  const outFile = args.out || args._[1] || path.join(__dirname, '..', 'content', 'generated.json');
-  const imgs = args.imgs !== undefined ? Number(args.imgs) : 1;
-
-  console.log(`키워드: ${keyword}`);
-  const prompt = buildPrompt(keyword, { imgs, audience: args.audience, intent: args.intent });
-  const post = await generateJson(prompt, args.provider);
-
-  // post.js 가 바로 쓸 수 있는지 최소 검증
+// 키워드 → SEO 글 객체 생성 (GUI/파이프라인에서 재사용)
+async function generateArticle(keyword, opts = {}) {
+  if (!keyword) throw new Error('키워드가 필요합니다.');
+  const imgs = opts.imgs !== undefined ? Number(opts.imgs) : 1;
+  const prompt = buildPrompt(keyword, { imgs, audience: opts.audience, intent: opts.intent });
+  const post = await generateJson(prompt, opts.provider);
   if (!post.title || !post.html) {
     throw new Error('생성 결과에 title/html 이 없습니다:\n' + JSON.stringify(post).slice(0, 500));
   }
+  return post;
+}
 
-  fs.mkdirSync(path.dirname(outFile), { recursive: true });
-  fs.writeFileSync(outFile, JSON.stringify(post, null, 2), 'utf8');
+if (require.main === module) {
+  (async () => {
+    const args = parseArgs(process.argv);
+    const keyword = args._[0];
+    if (!keyword) {
+      console.error('사용법: node automation/generate.js "키워드" [--provider openai|gemini|claude] [--out 파일] [--imgs N]');
+      process.exit(1);
+    }
+    const outFile = args.out || args._[1] || path.join(__dirname, '..', 'content', 'generated.json');
+    const imgs = args.imgs !== undefined ? Number(args.imgs) : 1;
 
-  console.log(`\n생성 완료 → ${outFile}`);
-  console.log(`검색 의도: ${post.searchIntent || '-'}`);
-  console.log(`제목: ${post.title}`);
-  console.log(`메타 설명: ${post.metaDescription || '-'}`);
-  console.log(`태그: ${(post.tags || []).join(', ')}`);
-  console.log(`본문 길이: ${post.html.length}자, 이미지 슬롯: ${(post.images || []).length}개`);
-  if ((post.images || []).length) {
-    console.log('\n이미지 정보 (file 경로를 채우면 발행 시 함께 업로드됩니다):');
-    post.images.forEach((im, i) => console.log(`  [${i}] alt="${im.alt}" filename="${im.filename}"`));
-  }
-  console.log(`\n발행: node automation/post.js --file ${outFile} --publish reserve`);
-})().catch((e) => {
-  console.error('ERROR:', e.message);
-  process.exit(1);
-});
+    console.log(`키워드: ${keyword}`);
+    const post = await generateArticle(keyword, {
+      imgs,
+      audience: args.audience,
+      intent: args.intent,
+      provider: args.provider,
+    });
+
+    fs.mkdirSync(path.dirname(outFile), { recursive: true });
+    fs.writeFileSync(outFile, JSON.stringify(post, null, 2), 'utf8');
+
+    console.log(`\n생성 완료 → ${outFile}`);
+    console.log(`검색 의도: ${post.searchIntent || '-'}`);
+    console.log(`제목: ${post.title}`);
+    console.log(`메타 설명: ${post.metaDescription || '-'}`);
+    console.log(`태그: ${(post.tags || []).join(', ')}`);
+    console.log(`본문 길이: ${post.html.length}자, 이미지 슬롯: ${(post.images || []).length}개`);
+    if ((post.images || []).length) {
+      console.log('\n이미지 정보 (file 경로를 채우면 발행 시 함께 업로드됩니다):');
+      post.images.forEach((im, i) => console.log(`  [${i}] alt="${im.alt}" filename="${im.filename}"`));
+    }
+    console.log(`\n발행: node automation/post.js --file ${outFile} --publish reserve`);
+  })().catch((e) => {
+    console.error('ERROR:', e.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { generateArticle, buildPrompt };

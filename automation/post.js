@@ -16,6 +16,7 @@
 // (Claude API 등으로 생성한 콘텐츠를 이 형식으로 저장하면 그대로 발행 가능)
 
 const fs = require('fs');
+const path = require('path');
 const { loadEnv } = require('./lib/env');
 const { launch, isLoggedIn, login, saveState, writePost } = require('./lib/tistory');
 
@@ -33,7 +34,85 @@ function parseArgs(argv) {
   return args;
 }
 
-(async () => {
+// 예약 시각 계산: 값이 있으면 파싱, 없으면 다음다음 정시(약 1시간 뒤)
+function resolveReserveAt(at) {
+  if (at) {
+    const d = new Date(at);
+    if (isNaN(d.getTime())) throw new Error(`예약 시각이 올바르지 않습니다: ${at}`);
+    return d;
+  }
+  const d = new Date(Date.now() + 60 * 60 * 1000);
+  d.setMinutes(0, 0, 0);
+  d.setHours(d.getHours() + 1);
+  return d;
+}
+
+// 파일 없는 이미지 제거 + 본문에 남은 미사용 {{IMAGE_n}} 토큰 정리
+function prepareImages(contentHtml, images, baseDir) {
+  const prepared = (images || [])
+    .filter((img) => {
+      if (!img.file) {
+        console.log(`[안내] 이미지 파일 미지정 → 건너뜀 (alt: "${img.alt || '-'}")`);
+        return false;
+      }
+      return true;
+    })
+    .map((img) => ({
+      ...img,
+      file: path.isAbsolute(img.file) ? img.file : path.join(baseDir || process.cwd(), img.file),
+    }));
+  for (const img of prepared) {
+    if (!fs.existsSync(img.file)) throw new Error(`이미지 파일이 없습니다: ${img.file}`);
+  }
+  let html = contentHtml;
+  if (html) {
+    html = html.replace(/<p>\s*\{\{IMAGE_(\d+)\}\}\s*<\/p>/g, (m, n) =>
+      Number(n) < prepared.length ? m : ''
+    );
+  }
+  return { html, images: prepared };
+}
+
+/**
+ * 구조화된 옵션으로 글 발행 (GUI/파이프라인 공용)
+ * @param {object} o { blog, title, contentHtml, tags, images, publish, reserveAt, baseDir }
+ */
+async function publishPost(o) {
+  const blog = o.blog || process.env.TISTORY_BLOG;
+  if (!blog) throw new Error('블로그 서브도메인이 필요합니다 (blog 또는 .env TISTORY_BLOG).');
+  if (!o.title || !o.contentHtml) throw new Error('제목과 본문이 필요합니다.');
+
+  const { html, images } = prepareImages(o.contentHtml, o.images, o.baseDir);
+  const publish = o.publish || 'draft';
+  const reserveAt = publish === 'reserve' ? resolveReserveAt(o.reserveAt) : null;
+  if (reserveAt) console.log('예약발행 시각:', reserveAt.toString());
+
+  const { browser, context } = await launch();
+  const page = await context.newPage();
+  try {
+    if (!(await isLoggedIn(page, blog))) {
+      console.log('세션이 없거나 만료됨 → 로그인 시도');
+      const id = process.env.TISTORY_ID;
+      const pw = process.env.TISTORY_PW;
+      if (!id || !pw) throw new Error('로그인이 필요한데 TISTORY_ID / TISTORY_PW 가 없습니다.');
+      await login(page, id, pw);
+      await saveState(context);
+    }
+    return await writePost(page, {
+      blog,
+      title: o.title,
+      contentHtml: html,
+      tags: o.tags || [],
+      publish,
+      reserveAt,
+      images,
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+async function cliMain() {
   const args = parseArgs(process.argv);
   const blog = args.blog || process.env.TISTORY_BLOG;
   if (!blog) {
@@ -47,78 +126,39 @@ function parseArgs(argv) {
   let images = args.images
     ? String(args.images).split(',').map((f) => ({ file: f.trim() }))
     : [];
+  let baseDir = process.cwd();
 
   if (args.file) {
     const data = JSON.parse(fs.readFileSync(args.file, 'utf8'));
     title = title || data.title;
     contentHtml = contentHtml || data.html || data.content;
     if (data.tags && !tags.length) tags = data.tags;
-    if (data.images && !images.length) {
-      // 이미지 경로는 JSON 파일 위치 기준 상대경로 허용.
-      // "file"이 없는 항목(생성 프롬프트만 있는 경우)은 경고 후 건너뜀.
-      const path = require('path');
-      const baseDir = path.dirname(path.resolve(args.file));
-      images = data.images
-        .filter((img) => {
-          if (!img.file) {
-            console.log(`[안내] 이미지 파일 미지정 → 건너뜀 (alt: "${img.alt || '-'}")`);
-            return false;
-          }
-          return true;
-        })
-        .map((img) => ({
-          ...img,
-          file: path.isAbsolute(img.file) ? img.file : path.join(baseDir, img.file),
-        }));
-    }
+    if (data.images && !images.length) images = data.images;
+    baseDir = path.dirname(path.resolve(args.file)); // JSON 위치 기준 상대경로 허용
   }
-  for (const img of images) {
-    if (!fs.existsSync(img.file)) {
-      console.error(`이미지 파일이 없습니다: ${img.file}`);
-      process.exit(1);
-    }
-  }
-  // 파일이 준비 안 된 이미지를 건너뛴 경우, 본문에 남을 {{IMAGE_n}} 토큰 제거
-  if (contentHtml) contentHtml = contentHtml.replace(/<p>\s*\{\{IMAGE_(\d+)\}\}\s*<\/p>/g, (m, n) =>
-    Number(n) < images.length ? m : ''
-  );
   if (!title || !contentHtml) {
     console.error('제목과 본문이 필요합니다: --title/--content 또는 --file <json>');
     process.exit(1);
   }
 
-  const publish = args.publish || 'draft'; // draft | now | reserve
-  let reserveAt = null;
-  if (publish === 'reserve') {
-    // --at 미지정 시 기본: 1시간 뒤 정시
-    if (args.at) {
-      reserveAt = new Date(args.at);
-    } else {
-      reserveAt = new Date(Date.now() + 60 * 60 * 1000);
-      reserveAt.setMinutes(0, 0, 0);
-      reserveAt.setHours(reserveAt.getHours() + 1);
-    }
-    console.log('예약발행 시각:', reserveAt.toString());
-  }
+  const result = await publishPost({
+    blog,
+    title,
+    contentHtml,
+    tags,
+    images,
+    baseDir,
+    publish: args.publish || 'draft',
+    reserveAt: args.at,
+  });
+  console.log('\n완료:', JSON.stringify(result, null, 2));
+}
 
-  const { browser, context } = await launch();
-  const page = await context.newPage();
-  try {
-    if (!(await isLoggedIn(page, blog))) {
-      console.log('세션이 없거나 만료됨 → 로그인 시도');
-      const id = process.env.TISTORY_ID;
-      const pw = process.env.TISTORY_PW;
-      if (!id || !pw) throw new Error('로그인이 필요한데 TISTORY_ID / TISTORY_PW 가 없습니다.');
-      await login(page, id, pw);
-      await saveState(context);
-    }
+if (require.main === module) {
+  cliMain().catch((e) => {
+    console.error('ERROR:', e.message);
+    process.exit(1);
+  });
+}
 
-    const result = await writePost(page, { blog, title, contentHtml, tags, publish, reserveAt, images });
-    console.log('\n완료:', JSON.stringify(result, null, 2));
-  } finally {
-    await browser.close();
-  }
-})().catch((e) => {
-  console.error('ERROR:', e.message);
-  process.exit(1);
-});
+module.exports = { publishPost, resolveReserveAt, prepareImages };

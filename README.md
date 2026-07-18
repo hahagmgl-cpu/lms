@@ -8,14 +8,23 @@ Playwright 브라우저 자동화로 [티스토리](https://www.tistory.com/)에
 
 ```
 automation/
+  server.js       # 웹 GUI (브라우저에서 클릭으로 사용)
+  auto.js         # 전체 파이프라인: 키워드 → 글 → 이미지 → 발행 (한 방)
   login.js        # 카카오 계정 로그인 → 세션(state.json) 저장
+  generate.js     # 키워드 → SEO 글 생성 (GPT/제미나이/Claude)
+  gen-image.js    # 글의 이미지 프롬프트 → 이미지 생성 (Pollinations 무료 등)
   post.js         # 글 작성 + 임시저장/즉시발행/예약발행 CLI
-  generate.js     # Claude API로 제목/본문/태그 자동 생성
-  lib/tistory.js  # 로그인·글쓰기 공용 로직 (셀렉터 폴백 포함)
+  lib/tistory.js  # 로그인·글쓰기·이미지업로드 공용 로직 (셀렉터 폴백 포함)
+  lib/llm.js      # GPT/제미나이/Claude 공통 래퍼
+  lib/image-gen.js# 이미지 생성 공급자 래퍼
   lib/env.js      # .env 로더
+  lib/png.js      # 오프라인 테스트용 placeholder PNG 생성
 content/
-  sample-post.json  # 테스트 글 데이터
+  sample-post.json            # 테스트 글 데이터
+  sample-post-with-image.json # 이미지 포함 테스트 글
 shots/              # 실행 중 단계별 스크린샷 (디버깅용, git 제외)
+docs/
+  image-pipeline-plan.md      # 이미지/생성 파이프라인 설계 문서
 ```
 
 ## 설치
@@ -31,7 +40,32 @@ npx playwright install chromium   # 로컬 PC에서 최초 1회
 cp .env.example .env
 ```
 
-## 사용법
+## 가장 쉬운 방법: 웹 GUI
+
+```bash
+node automation/login.js     # 최초 1회 로그인 (아래 참고)
+node automation/server.js    # GUI 실행
+```
+
+브라우저에서 **http://localhost:3000** 접속 → 키워드 입력 → **① 미리보기 생성** 으로 글을 확인·수정 → 발행 방식(임시저장/예약/즉시) 선택 → **② 이미지 생성 + 발행**. 상단 배지로 어떤 API 키가 준비됐는지, 로그인 세션이 있는지 한눈에 보이고, 진행 상황이 실시간 로그로 표시됩니다.
+
+## 한 방 실행: 파이프라인 CLI
+
+키워드 하나로 글 생성 → 이미지 생성 → 발행까지:
+
+```bash
+# 임시저장으로 안전하게 테스트 (이미지 1장, 무료 Pollinations)
+node automation/auto.js "제주도 겨울 여행 코스"
+
+# 예약발행 + 이미지 2장 + 공급자 지정
+node automation/auto.js "노트북 추천" --provider gemini --img-provider pollinations \
+  --imgs 2 --publish reserve --at "2026-07-20T09:00"
+
+# 이미지 없이 글만
+node automation/auto.js "키워드" --no-images --publish draft
+```
+
+## 단계별 사용법
 
 ### 1. 로그인 (최초 1회, 세션 저장)
 
@@ -103,6 +137,23 @@ node automation/post.js --file content/generated.json --publish reserve --at "20
   "images": [{ "file": "images/a.webp", "alt": "...", "caption": "...", "filename": "..." }]
 }
 ```
+
+### 5. 이미지 자동 생성 (Pollinations 무료 / Together / OpenAI)
+
+생성된 글 JSON의 `images[].prompt` 로 이미지를 만들어 `file` 경로를 자동으로 채웁니다.
+
+```bash
+# 무료 Pollinations (API 키 불필요)
+node automation/gen-image.js content/generated.json
+
+# 공급자·크기 지정
+node automation/gen-image.js content/generated.json --provider together --width 1024 --height 576
+
+# 이미지까지 채운 뒤 발행
+node automation/post.js --file content/generated.json --publish reserve
+```
+
+이미지는 글 JSON 옆의 `content/images/` 에 저장되고, 파일명은 `filename`(한국어 SEO용) 기준으로 만들어집니다. 비용/공급자 비교는 [docs/image-pipeline-plan.md](docs/image-pipeline-plan.md) 참고. (`auto.js` 나 GUI를 쓰면 이 단계가 자동으로 포함됩니다.)
 
 ## 주의사항
 
