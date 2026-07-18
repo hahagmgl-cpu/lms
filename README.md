@@ -75,17 +75,33 @@ node automation/post.js --file content/sample-post-with-image.json --publish res
 
 > 본문 입력은 **HTML 모드(CodeMirror)** 로 전환해서 넣습니다. TinyMCE API 방식은 화면에는 보여도 저장 시 본문이 비는 문제가 있어 사용하지 않습니다.
 
-### 4. Claude API로 글 생성 → 발행 (콘텐츠 자동화)
+### 4. 키워드 → SEO 글 자동 생성 (GPT / 제미나이 / Claude)
+
+키워드를 주면 검색의도 분석 → SEO 제목/메타설명 → h2/h3 구조 본문(2,000자+) → FAQ → 태그 → 이미지 프롬프트(alt/캡션/파일명)까지 생성합니다. `.env` 에 사용할 API 키를 넣으면 됩니다 (`OPENAI_API_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` 중 하나 이상).
 
 ```bash
-node automation/generate.js "여름 제철 음식 추천" content/generated.json
-node automation/post.js --file content/generated.json --publish reserve --at "2026-07-18T09:00"
+# 키가 있는 공급자 자동 선택
+node automation/generate.js "제주도 겨울 여행 코스"
+
+# 공급자 지정 + 이미지 슬롯 2개 + 타깃/니즈 지정
+node automation/generate.js "제주도 겨울 여행 코스" --provider gemini --imgs 2 \
+  --audience "아이 동반 가족" --intent "일정표와 예상 경비를 알고 싶어함"
+
+# 생성된 글 예약발행
+node automation/post.js --file content/generated.json --publish reserve --at "2026-07-20T09:00"
 ```
+
+생성 JSON의 `images` 배열에는 이미지 생성용 `prompt`와 `alt`/`caption`/`filename`이 들어 있습니다. 이미지를 만들어 `file` 경로를 채우면 발행 시 자동 업로드되고, 채우지 않으면 해당 이미지는 건너뛰고 글만 발행됩니다.
 
 글 데이터 JSON 형식:
 
 ```json
-{ "title": "제목", "html": "<p>본문 HTML</p>", "tags": ["태그1", "태그2"] }
+{
+  "title": "제목",
+  "html": "<p>본문 HTML</p><p>{{IMAGE_0}}</p>",
+  "tags": ["태그1", "태그2"],
+  "images": [{ "file": "images/a.webp", "alt": "...", "caption": "...", "filename": "..." }]
+}
 ```
 
 ## 주의사항

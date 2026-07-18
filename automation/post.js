@@ -54,12 +54,22 @@ function parseArgs(argv) {
     contentHtml = contentHtml || data.html || data.content;
     if (data.tags && !tags.length) tags = data.tags;
     if (data.images && !images.length) {
-      // 이미지 경로는 JSON 파일 위치 기준 상대경로 허용
-      const baseDir = require('path').dirname(require('path').resolve(args.file));
-      images = data.images.map((img) => ({
-        ...img,
-        file: require('path').isAbsolute(img.file) ? img.file : require('path').join(baseDir, img.file),
-      }));
+      // 이미지 경로는 JSON 파일 위치 기준 상대경로 허용.
+      // "file"이 없는 항목(생성 프롬프트만 있는 경우)은 경고 후 건너뜀.
+      const path = require('path');
+      const baseDir = path.dirname(path.resolve(args.file));
+      images = data.images
+        .filter((img) => {
+          if (!img.file) {
+            console.log(`[안내] 이미지 파일 미지정 → 건너뜀 (alt: "${img.alt || '-'}")`);
+            return false;
+          }
+          return true;
+        })
+        .map((img) => ({
+          ...img,
+          file: path.isAbsolute(img.file) ? img.file : path.join(baseDir, img.file),
+        }));
     }
   }
   for (const img of images) {
@@ -68,6 +78,10 @@ function parseArgs(argv) {
       process.exit(1);
     }
   }
+  // 파일이 준비 안 된 이미지를 건너뛴 경우, 본문에 남을 {{IMAGE_n}} 토큰 제거
+  if (contentHtml) contentHtml = contentHtml.replace(/<p>\s*\{\{IMAGE_(\d+)\}\}\s*<\/p>/g, (m, n) =>
+    Number(n) < images.length ? m : ''
+  );
   if (!title || !contentHtml) {
     console.error('제목과 본문이 필요합니다: --title/--content 또는 --file <json>');
     process.exit(1);
