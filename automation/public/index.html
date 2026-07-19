@@ -283,16 +283,43 @@ $('#btnProduce').addEventListener('click',async()=>{
 async function loadQueue(){
   const d=await(await fetch('/api/queue')).json();const tb=$('#qbody');
   if(!d.posts.length){tb.innerHTML='<tr><td colspan="5" style="color:var(--muted)">큐가 비어 있습니다. ①탭에서 생산하세요.</td></tr>';return;}
+  window._queue={}; d.posts.forEach(p=>window._queue[p.id]=p);
   tb.innerHTML=d.posts.map(p=>{
     const imgs=(p.images||[]).filter(i=>i.file).length;
+    const nImg=(p.images||[]).length;
     return '<tr><td><span class="pill st-'+p.status+'">'+p.status+'</span></td>'+
       '<td><div class="qtitle">'+esc(p.title)+'</div><div class="qmeta">'+esc(p.keyword)+' · '+(p.tags||[]).join(', ')+'</div>'+
-      (p.publishedUrl?'<div class="qmeta">🔗 <a href="'+p.publishedUrl+'" target="_blank">'+p.publishedUrl+'</a></div>':'')+'</td>'+
-      '<td>'+imgs+'/'+(p.images||[]).length+'</td>'+
+      (p.publishedUrl?'<div class="qmeta">🔗 <a href="'+p.publishedUrl+'" target="_blank">'+esc(p.publishedUrl)+'</a></div>':'')+'</td>'+
+      '<td>'+imgs+'/'+nImg+(nImg?' <button class="btn btn-ghost btn-sm" data-img="'+p.id+'">메타</button>':'')+'</td>'+
       '<td>'+(p.scheduleAt?esc(p.scheduleAt):'-')+'</td>'+
-      '<td><div class="rowbtns"><button class="btn btn-go btn-sm" data-pub="'+p.id+'">발행</button></div></td></tr>';
+      '<td><div class="rowbtns"><button class="btn btn-go btn-sm" data-pub="'+p.id+'">발행</button></div></td></tr>'+
+      '<tr class="imgedit hide" id="ie-'+p.id+'"><td colspan="5"></td></tr>';
   }).join('');
   tb.querySelectorAll('[data-pub]').forEach(b=>b.addEventListener('click',()=>publishOne(b.dataset.pub)));
+  tb.querySelectorAll('[data-img]').forEach(b=>b.addEventListener('click',()=>toggleImgEdit(b.dataset.img)));
+}
+
+function toggleImgEdit(id){
+  const row=$('#ie-'+id), cell=row.querySelector('td');
+  if(!row.classList.contains('hide')){row.classList.add('hide');return;}
+  const p=window._queue[id];
+  cell.innerHTML='<div style="padding:8px 4px">'+
+    (p.images||[]).map((im,i)=>'<div class="imgcard" style="margin-top:8px;border:1px solid var(--line);border-radius:10px;padding:10px">'+
+      '<b style="color:var(--accent3);font-size:12px">이미지 '+i+' ('+esc(im.file||'파일없음')+')</b>'+
+      '<label style="margin-top:6px">alt (대체텍스트)</label><input data-i="'+i+'" data-k="alt" value="'+esc(im.alt)+'">'+
+      '<label>caption (캡션)</label><input data-i="'+i+'" data-k="caption" value="'+esc(im.caption)+'">'+
+      '<label>filename (SEO 파일명)</label><input data-i="'+i+'" data-k="filename" value="'+esc(im.filename)+'">'+
+      '</div>').join('')+
+    '<div class="btns"><button class="btn btn-blue btn-sm" id="saveimg-'+id+'">💾 이미지 메타 저장</button></div></div>';
+  row.classList.remove('hide');
+  cell.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',e=>{
+    const t=e.target;p.images[+t.dataset.i][t.dataset.k]=t.value;}));
+  $('#saveimg-'+id).addEventListener('click',async()=>{
+    const btn=$('#saveimg-'+id);busy(btn,true,'저장...');
+    await fetch('/api/queue/update',{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({id,images:p.images.map(im=>({alt:im.alt,caption:im.caption,filename:im.filename}))})});
+    busy(btn,false);btn.textContent='✓ 저장됨';
+  });
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 

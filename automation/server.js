@@ -134,7 +134,9 @@ const server = http.createServer(async (req, res) => {
       const posts = store.listPosts().map((p) => ({
         id: p.id, title: p.title, keyword: p.keyword, status: p.status,
         tags: p.tags, scheduleAt: p.scheduleAt, publishedUrl: p.publishedUrl,
-        images: (p.images || []).map((i) => ({ file: i.file, alt: i.alt })),
+        images: (p.images || []).map((i) => ({
+          file: i.file || '', alt: i.alt || '', caption: i.caption || '', filename: i.filename || '',
+        })),
       }));
       return json(res, 200, { posts, hasExcel: store.hasExcel });
     }
@@ -166,6 +168,21 @@ const server = http.createServer(async (req, res) => {
       ['title', 'tags', 'status', 'scheduleAt', 'blog', 'html'].forEach((k) => {
         if (body[k] !== undefined) patch[k] = body[k];
       });
+      // 이미지 메타(alt/caption/filename) 수정: 인덱스별 병합
+      if (Array.isArray(body.images)) {
+        const cur = store.getPost(body.id);
+        if (cur) {
+          patch.images = (cur.images || []).map((im, i) => {
+            const e = body.images[i] || {};
+            return {
+              ...im,
+              alt: e.alt !== undefined ? e.alt : im.alt,
+              caption: e.caption !== undefined ? e.caption : im.caption,
+              filename: e.filename !== undefined ? e.filename : im.filename,
+            };
+          });
+        }
+      }
       const p = store.updatePost(body.id, patch);
       store.writeIndex();
       return json(res, 200, { ok: true, post: p });

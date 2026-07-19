@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadEnv } = require('./lib/env');
 const { generateJson } = require('./lib/llm');
+const { normalizeImages } = require('./lib/imagemeta');
 const cfg = require('./lib/config');
 
 loadEnv();
@@ -96,6 +97,8 @@ async function generateArticle(keyword, opts = {}) {
   if (!post.title || !post.html) {
     throw new Error('생성 결과에 title/html 이 없습니다:\n' + JSON.stringify(post).slice(0, 500));
   }
+  // alt/caption/filename 을 생성 시점에 확정·정규화 (이후 발행 치환에 그대로 사용됨)
+  post.images = normalizeImages(post.images, { title: post.title, keyword });
   return post;
 }
 

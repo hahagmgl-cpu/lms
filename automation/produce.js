@@ -15,6 +15,7 @@ const path = require('path');
 const { loadEnv } = require('./lib/env');
 const { generateArticle } = require('./generate');
 const { generateImage } = require('./lib/image-gen');
+const { normalizeImages, stem } = require('./lib/imagemeta');
 const store = require('./lib/store');
 const cfg = require('./lib/config');
 
@@ -30,11 +31,6 @@ function parseArgs(argv) {
     } else args._.push(argv[i]);
   }
   return args;
-}
-
-function safeStem(name, fallback) {
-  const base = (name || fallback).replace(/\.[a-z0-9]+$/i, '');
-  return base.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) || fallback;
 }
 
 /**
@@ -54,6 +50,9 @@ async function produceOne(keyword, opts = {}, log = console.log) {
     intent: opts.intent,
   });
 
+  // 안전장치: article 이 아직 정규화 안 됐으면 여기서 확정 (alt/caption/filename 보장)
+  article.images = normalizeImages(article.images, { title: article.title, keyword });
+
   const post = store.createPost(article, { keyword, blog: opts.blog || c.post.blog });
   log(`  저장: ${post.id} — ${post.title}`);
 
@@ -64,8 +63,8 @@ async function produceOne(keyword, opts = {}, log = console.log) {
     for (let i = 0; i < post.images.length; i++) {
       const im = post.images[i];
       if (!im.prompt) { log(`  이미지[${i}] prompt 없음 → 건너뜀`); continue; }
-      const stem = safeStem(im.filename, `image_${i}`);
-      const outFile = path.join(dir, `${stem}.png`);
+      // 디스크 파일명 = SEO 파일명의 stem + 실제 포맷(.png). im.filename(SEO)은 치환문에 그대로 사용.
+      const outFile = path.join(dir, `${stem(im.filename)}.png`);
       try {
         await generateImage(im.prompt, outFile, {
           provider: imgProvider,

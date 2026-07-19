@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadEnv } = require('./lib/env');
 const { generateImage } = require('./lib/image-gen');
+const { normalizeImages, stem } = require('./lib/imagemeta');
 
 loadEnv();
 
@@ -27,17 +28,14 @@ function parseArgs(argv) {
   return args;
 }
 
-// 파일명에서 확장자를 제거하고 안전한 이름으로 (한글 허용, 경로 문자 제거)
-function safeStem(name, fallback) {
-  const base = (name || fallback).replace(/\.[a-z0-9]+$/i, '');
-  return base.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60) || fallback;
-}
-
 async function fillImages(jsonFile, opts) {
   const data = JSON.parse(fs.readFileSync(jsonFile, 'utf8'));
-  const images = data.images || [];
+  // 메타(alt/caption/filename) 확정·정규화 후 저장 (생성 시점에 확정 보장)
+  data.images = normalizeImages(data.images, { title: data.title, keyword: data.keyword });
+  const images = data.images;
   if (!images.length) {
     console.log('images 항목이 없습니다. 건너뜁니다.');
+    fs.writeFileSync(jsonFile, JSON.stringify(data, null, 2), 'utf8');
     return data;
   }
   const outDir = path.join(path.dirname(path.resolve(jsonFile)), 'images');
@@ -54,8 +52,7 @@ async function fillImages(jsonFile, opts) {
       console.log(`[${i}] prompt 없음 → 건너뜀`);
       continue;
     }
-    const stem = safeStem(img.filename, `image_${i}`);
-    const outFile = path.join(outDir, `${stem}.png`);
+    const outFile = path.join(outDir, `${stem(img.filename)}.png`);
     try {
       await generateImage(img.prompt, outFile, { width, height, provider: opts.provider, seed: opts.seed });
       // JSON 에는 json 파일 기준 상대경로로 저장
@@ -85,4 +82,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { fillImages, safeStem };
+module.exports = { fillImages };
