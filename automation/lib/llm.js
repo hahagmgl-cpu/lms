@@ -46,7 +46,7 @@ async function callOpenAI(prompt, opts = {}) {
 async function callGemini(prompt, opts = {}) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('.env 에 GEMINI_API_KEY 를 설정하세요.');
-  const model = opts.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = opts.model || process.env.GEMINI_MODEL || 'gemini-flash-latest';
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -59,7 +59,16 @@ async function callGemini(prompt, opts = {}) {
       }),
     }
   );
-  if (!res.ok) throw new Error(`Gemini API 오류 ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.text();
+    if (res.status === 404 && /model/i.test(body)) {
+      throw new Error(
+        `Gemini 모델 "${model}" 을(를) 쓸 수 없습니다. 설정 탭(또는 config/config.json, .env 의 GEMINI_MODEL)에서 ` +
+          `모델명을 바꾸세요. 안전한 기본값: "gemini-flash-latest" (항상 최신). 사용 가능 목록: https://ai.google.dev/gemini-api/docs/models\n원문: ${body}`
+      );
+    }
+    throw new Error(`Gemini API 오류 ${res.status}: ${body}`);
+  }
   const data = await res.json();
   const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
   if (!text) throw new Error('Gemini 응답이 비어 있습니다: ' + JSON.stringify(data).slice(0, 500));
