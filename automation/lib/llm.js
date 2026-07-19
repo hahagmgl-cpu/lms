@@ -31,10 +31,10 @@ async function callOpenAI(prompt, opts = {}) {
     body: JSON.stringify({
       model,
       messages: [
-        { role: 'system', content: '당신은 한국어 SEO 블로그 전문 작가입니다. 반드시 유효한 JSON만 출력합니다.' },
+        { role: 'system', content: '당신은 한국어 SEO 블로그 전문 작가입니다. 요청한 형식 그대로 정확히 출력합니다.' },
         { role: 'user', content: prompt },
       ],
-      response_format: { type: 'json_object' },
+      ...(opts.json === false ? {} : { response_format: { type: 'json_object' } }),
       temperature: opts.temperature ?? 0.7,
     }),
   });
@@ -68,7 +68,10 @@ async function callGemini(prompt, opts = {}) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: opts.temperature ?? 0.7 },
+        generationConfig: {
+          ...(opts.json === false ? {} : { responseMimeType: 'application/json' }),
+          temperature: opts.temperature ?? 0.7,
+        },
       }),
     }
   );
@@ -152,4 +155,24 @@ async function generateJson(prompt, provider, opts = {}) {
   throw new Error('여러 번 시도했지만 유효한 JSON을 얻지 못했습니다: ' + lastErr.message);
 }
 
-module.exports = { generateJson, pickProvider, parseJsonResponse, PROVIDERS };
+// 원문 텍스트 생성 (JSON 모드 끔). parseFn 으로 검증/파싱, 실패 시 최대 3회 재생성.
+async function generateText(prompt, provider, opts = {}, parseFn) {
+  const p = pickProvider(provider);
+  const call = { openai: callOpenAI, gemini: callGemini, claude: callClaude }[p];
+  console.log(`공급자: ${p}`);
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const { text, model } = await call(prompt, { ...opts, json: false });
+    if (attempt === 1) console.log(`모델: ${model}`);
+    if (!parseFn) return text;
+    try {
+      return parseFn(text);
+    } catch (e) {
+      lastErr = e;
+      console.log(`  응답 파싱 실패 (시도 ${attempt}/3): ${e.message}${attempt < 3 ? ' → 재생성' : ''}`);
+    }
+  }
+  throw new Error('여러 번 시도했지만 형식에 맞는 응답을 얻지 못했습니다: ' + lastErr.message);
+}
+
+module.exports = { generateJson, generateText, pickProvider, parseJsonResponse, PROVIDERS };

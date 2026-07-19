@@ -19,7 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { loadEnv } = require('./lib/env');
-const { generateJson } = require('./lib/llm');
+const { generateText } = require('./lib/llm');
 const { normalizeImages } = require('./lib/imagemeta');
 const cfg = require('./lib/config');
 
@@ -39,50 +39,89 @@ function parseArgs(argv) {
   return args;
 }
 
+// JSON 대신 구분자(@@@섹션@@@) 형식을 쓴다.
+// 본문 HTML에 큰따옴표·줄바꿈이 아무리 많아도 파싱이 깨지지 않는다(이스케이프 불필요).
 function buildPrompt(keyword, { imgs, audience, intent }) {
-  const imageSection =
+  const imageRule =
     imgs > 0
-      ? `
-- 본문 중 자연스러운 위치 ${imgs}곳에 {{IMAGE_0}}${imgs > 1 ? ` ~ {{IMAGE_${imgs - 1}}}` : ''} 토큰을 <p> 단독 문단으로 배치
-- "images" 배열에 각 토큰에 대응하는 이미지 정보를 ${imgs}개 작성:
-  - "prompt": 이미지 생성 AI에 줄 영문 프롬프트 (사진풍, 텍스트 없는 이미지)
-  - "alt": 한국어 대체텍스트 (키워드 포함, 이미지 내용 묘사)
-  - "caption": 한국어 캡션 (독자에게 도움되는 한 문장)
-  - "filename": SEO용 한국어 파일명 (공백 대신 _, 확장자 .webp)`
-      : `
-- 이미지는 사용하지 않음. "images"는 빈 배열로.`;
+      ? `- 본문 중 자연스러운 위치 ${imgs}곳에 {{IMAGE_0}}${imgs > 1 ? ` ~ {{IMAGE_${imgs - 1}}}` : ''} 토큰을 <p> 단독 문단으로 배치하세요.
+- @@@IMAGES@@@ 섹션에 이미지 정보를 ${imgs}줄 작성하세요. 각 줄은 아래 형식(구분자 ' ||| '):
+  영문프롬프트 ||| 한국어alt ||| 한국어캡션 ||| SEO파일명.webp
+  (영문프롬프트=사진풍·텍스트없는 이미지 묘사 / alt=키워드 포함 대체텍스트 / caption=도움되는 한 문장 / 파일명=공백대신_ .webp)`
+      : `- 이미지는 사용하지 않습니다. @@@IMAGES@@@ 섹션은 비워두세요.`;
 
   return `당신은 한국어 SEO 블로그 전문 작가입니다. 아래 키워드로 티스토리 블로그 글을 작성하세요.
 
 키워드: "${keyword}"${audience ? `\n타깃 독자: ${audience}` : ''}${intent ? `\n검색 니즈: ${intent}` : ''}
 
 작성 원칙 (SEO + 검색 니즈):
-1. 먼저 이 키워드를 검색하는 사람의 의도(정보탐색/비교/구매/문제해결)를 파악하고, 그 니즈에 정면으로 답하는 글을 쓸 것
-2. 제목: 45자 이내, 핵심 키워드를 앞쪽에 배치, 숫자·연도·혜택 등 클릭 유도 요소 포함
-3. 도입부(첫 문단): 검색자가 원하는 답을 2~3문장으로 즉시 요약 (검색엔진 스니펫 노출 대비)
-4. 본문 구조: <h2> 소제목 3~5개, 필요 시 <h3> 하위 소제목. 소제목에도 연관 키워드를 자연스럽게 포함
-5. 가독성: 문단은 2~4문장, 목록(<ul>/<ol>)과 표(<table>)를 적극 활용
-6. 글 마지막에 <h2>자주 묻는 질문</h2> 섹션으로 Q&A 3개 (질문은 <h3>, 답변은 <p>)
-7. 분량: 본문 2,000자 이상 (한글 기준)
-8. 키워드를 본문에 자연스럽게 5~8회 배치 (억지 반복 금지), 동의어·연관어 함께 사용
-9. 과장·허위 정보 금지, 실용적이고 구체적인 정보 위주${imageSection}
+1. 이 키워드를 검색하는 사람의 의도(정보탐색/비교/구매/문제해결)를 파악하고, 그 니즈에 정면으로 답하세요.
+2. 제목: 45자 이내, 핵심 키워드를 앞쪽에, 숫자·연도·혜택 등 클릭 유도 요소 포함.
+3. 도입부(첫 문단): 검색자가 원하는 답을 2~3문장으로 즉시 요약(스니펫 대비).
+4. 본문: <h2> 소제목 3~5개, 필요 시 <h3>. 소제목에도 연관 키워드 포함.
+5. 가독성: 문단 2~4문장, 목록(<ul>/<ol>)·표(<table>) 활용.
+6. 글 끝에 <h2>자주 묻는 질문</h2> + Q&A 3개(질문 <h3>, 답변 <p>).
+7. 분량: 본문 2,000자 이상(한글 기준).
+8. 키워드 자연스럽게 5~8회 배치, 동의어·연관어 함께.
+9. 과장·허위 금지, 실용적·구체적으로.
+${imageRule}
 
-[매우 중요 - JSON 안전 규칙]
-- 응답 전체는 반드시 유효한(파싱 가능한) JSON 하나여야 합니다.
-- html 값 안에서 HTML 속성은 큰따옴표 대신 **작은따옴표**를 쓰세요. 예: <a href='https://...'> (JSON 깨짐 방지)
-- html 값 안에 줄바꿈(엔터)을 넣지 말고 한 줄로 이어 쓰세요.
-- 문자열 안에 큰따옴표가 꼭 필요하면 반드시 \\" 로 이스케이프하세요.
+[출력 형식 - 반드시 이대로. 각 @@@...@@@ 표시는 반드시 줄 맨 앞에 단독으로]
+@@@TITLE@@@
+(SEO 제목)
+@@@META@@@
+(150자 내외 메타 설명)
+@@@INTENT@@@
+(파악한 검색 의도 한 문장)
+@@@TAGS@@@
+(태그5개, 쉼표로 구분)
+@@@HTML@@@
+(본문 HTML 전체 - 큰따옴표·줄바꿈 자유롭게 사용 가능. 여기에는 이스케이프가 전혀 필요 없습니다)
+@@@IMAGES@@@
+${imgs > 0 ? '(위 형식대로 ' + imgs + '줄)' : '(비움)'}
+@@@END@@@
 
-아래 JSON 형식으로만 응답하세요 (코드펜스 없이, 다른 텍스트 없이):
-{
-  "keyword": "${keyword}",
-  "searchIntent": "파악한 검색 의도 한 문장",
-  "title": "SEO 제목",
-  "metaDescription": "150자 내외 메타 설명",
-  "html": "<p>도입부...</p><h2>...</h2>...",
-  "tags": ["태그1", "태그2", "태그3", "태그4", "태그5"],
-  "images": []
-}`;
+위 형식 외의 다른 텍스트(코드펜스, 설명)는 절대 출력하지 마세요.`;
+}
+
+// @@@섹션@@@ 형식 파싱 → 글 객체. HTML은 원문 그대로 보존.
+function parseArticleSections(text, keyword) {
+  const marker = /^@@@([A-Z]+)@@@[ \t]*$/gm;
+  const sections = {};
+  const hits = [];
+  let m;
+  while ((m = marker.exec(text)) !== null) hits.push({ name: m[1], start: m.index, end: marker.lastIndex });
+  if (!hits.length) throw new Error('구분자(@@@) 형식을 찾지 못했습니다: ' + text.slice(0, 200));
+  for (let i = 0; i < hits.length; i++) {
+    const name = hits[i].name;
+    if (name === 'END') continue;
+    const contentStart = hits[i].end;
+    const contentEnd = i + 1 < hits.length ? hits[i + 1].start : text.length;
+    sections[name] = text.slice(contentStart, contentEnd).replace(/^\s*\n/, '').replace(/\s+$/, '');
+  }
+  const title = (sections.TITLE || '').trim();
+  const html = (sections.HTML || '').trim();
+  if (!title || !html) throw new Error('TITLE/HTML 섹션이 비었습니다.');
+
+  const tags = (sections.TAGS || '').split(/[,\n]/).map((t) => t.trim()).filter(Boolean);
+  const images = (sections.IMAGES || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && l.includes('|||'))
+    .map((l) => {
+      const [prompt, alt, caption, filename] = l.split('|||').map((s) => s.trim());
+      return { prompt, alt, caption, filename };
+    });
+
+  return {
+    keyword,
+    title,
+    metaDescription: (sections.META || '').trim(),
+    searchIntent: (sections.INTENT || '').trim(),
+    html,
+    tags,
+    images,
+  };
 }
 
 // 키워드 → SEO 글 객체 생성 (GUI/파이프라인에서 재사용)
@@ -95,14 +134,12 @@ async function generateArticle(keyword, opts = {}) {
   const audience = opts.audience || c.seo.audience || undefined;
   const intent = opts.intent || c.seo.intent || undefined;
   const prompt = buildPrompt(keyword, { imgs, audience, intent });
-  const post = await generateJson(prompt, provider, {
-    model: cfg.textModel(c, provider),
-    temperature: c.text.temperature,
-    maxTokens: c.text.maxTokens,
-  });
-  if (!post.title || !post.html) {
-    throw new Error('생성 결과에 title/html 이 없습니다:\n' + JSON.stringify(post).slice(0, 500));
-  }
+  const post = await generateText(
+    prompt,
+    provider,
+    { model: cfg.textModel(c, provider), temperature: c.text.temperature, maxTokens: c.text.maxTokens },
+    (text) => parseArticleSections(text, keyword)
+  );
   // alt/caption/filename 을 생성 시점에 확정·정규화 (이후 발행 치환에 그대로 사용됨)
   post.images = normalizeImages(post.images, { title: post.title, keyword });
   return post;
@@ -147,4 +184,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { generateArticle, buildPrompt };
+module.exports = { generateArticle, buildPrompt, parseArticleSections };
