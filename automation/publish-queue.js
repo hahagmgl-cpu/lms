@@ -2,8 +2,10 @@
 //
 // 사용법:
 //   node automation/publish-queue.js --list                          # 큐 목록 보기
-//   node automation/publish-queue.js --id 20260720-093000-키워드     # 특정 글 발행
-//   node automation/publish-queue.js --all                           # ready 상태 전부 발행
+//   node automation/publish-queue.js --id 20260720-093000-키워드     # 특정 글 1개 발행
+//   node automation/publish-queue.js --ids id1,id2,id3               # 지정한 여러 개만 발행
+//   node automation/publish-queue.js --all                           # 발행대기(ready/draft) 전부
+//   node automation/publish-queue.js --all --limit 3                 # 발행대기 중 앞에서 3개만
 //   node automation/publish-queue.js --all --publish reserve --at "2026-07-21T09:00"
 //   node automation/publish-queue.js --sync                          # 엑셀/CSV 편집을 post.json 에 반영
 //
@@ -98,6 +100,16 @@ if (require.main === module) {
 
     const opts = { publish: args.publish, at: args.at, blog: args.blog };
 
+    // 특정 여러 개: --ids id1,id2,id3
+    if (args.ids) {
+      const ids = String(args.ids).split(',').map((s) => s.trim()).filter(Boolean);
+      const posts = ids.map((id) => store.getPost(id)).filter(Boolean);
+      if (!posts.length) { console.error('해당하는 글이 없습니다.'); process.exit(1); }
+      let ok = 0;
+      for (const p of posts) ok += (await publishOne(p, opts)).ok ? 1 : 0;
+      store.writeIndex();
+      return console.log(`\n발행 완료: 성공 ${ok} / 전체 ${posts.length}건`);
+    }
     if (args.id) {
       const post = store.getPost(args.id);
       if (!post) { console.error('해당 id 없음:', args.id); process.exit(1); }
@@ -106,7 +118,10 @@ if (require.main === module) {
       return;
     }
     if (args.all) {
-      const res = await publishMany((p) => ['ready', 'draft'].includes(p.status), opts);
+      // --limit N: 발행대기 중 앞에서 N개만
+      const limit = args.limit ? Number(args.limit) : Infinity;
+      let count = 0;
+      const res = await publishMany((p) => ['ready', 'draft'].includes(p.status) && count++ < limit, opts);
       const ok = res.filter((r) => r.ok).length;
       console.log(`\n발행 완료: 성공 ${ok} / 전체 ${res.length}건`);
     }

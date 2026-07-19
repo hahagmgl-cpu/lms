@@ -170,10 +170,11 @@
         <div class="field"><label>블로그</label><input id="q_blog" placeholder="record7518"></div>
       </div>
       <div class="btns">
-        <button class="btn btn-go" id="btnPublishAll">🚀 발행대기 전체 발행</button>
+        <button class="btn btn-go" id="btnPublishSel">🚀 선택 발행 (<span id="selCount">0</span>개)</button>
+        <button class="btn btn-ghost" id="btnPublishAll">발행대기 전체 발행</button>
       </div>
       <div style="overflow-x:auto;margin-top:16px">
-        <table id="qtable"><thead><tr><th>상태</th><th>제목 / 키워드</th><th>이미지</th><th>예약</th><th></th></tr></thead><tbody id="qbody"></tbody></table>
+        <table id="qtable"><thead><tr><th><input type="checkbox" id="selAll" title="전체 선택"></th><th>상태</th><th>제목 / 키워드</th><th>이미지</th><th>예약</th><th></th></tr></thead><tbody id="qbody"></tbody></table>
       </div>
       <pre class="log hide" id="publishLog"></pre>
     </div>
@@ -283,21 +284,26 @@ $('#btnProduce').addEventListener('click',async()=>{
 /* queue */
 async function loadQueue(){
   const d=await(await fetch('/api/queue')).json();const tb=$('#qbody');
-  if(!d.posts.length){tb.innerHTML='<tr><td colspan="5" style="color:var(--muted)">큐가 비어 있습니다. ①탭에서 생산하세요.</td></tr>';return;}
+  if(!d.posts.length){tb.innerHTML='<tr><td colspan="6" style="color:var(--muted)">큐가 비어 있습니다. ①탭에서 생산하세요.</td></tr>';updateSelCount();return;}
   window._queue={}; d.posts.forEach(p=>window._queue[p.id]=p);
   tb.innerHTML=d.posts.map(p=>{
     const imgs=(p.images||[]).filter(i=>i.file).length;
     const nImg=(p.images||[]).length;
-    return '<tr><td><span class="pill st-'+p.status+'">'+p.status+'</span></td>'+
+    const canPub=['ready','draft','failed'].includes(p.status);
+    const preCheck=['ready','draft'].includes(p.status);
+    return '<tr><td><input type="checkbox" class="qsel" data-id="'+p.id+'"'+(canPub?'':' disabled')+(preCheck?' checked':'')+'></td>'+
+      '<td><span class="pill st-'+p.status+'">'+p.status+'</span></td>'+
       '<td><div class="qtitle">'+esc(p.title)+'</div><div class="qmeta">'+esc(p.keyword)+' · '+(p.tags||[]).join(', ')+'</div>'+
       (p.publishedUrl?'<div class="qmeta">🔗 <a href="'+p.publishedUrl+'" target="_blank">'+esc(p.publishedUrl)+'</a></div>':'')+'</td>'+
       '<td>'+imgs+'/'+nImg+(nImg?' <button class="btn btn-ghost btn-sm" data-img="'+p.id+'">메타</button>':'')+'</td>'+
       '<td>'+(p.scheduleAt?esc(p.scheduleAt):'-')+'</td>'+
       '<td><div class="rowbtns"><button class="btn btn-go btn-sm" data-pub="'+p.id+'">발행</button></div></td></tr>'+
-      '<tr class="imgedit hide" id="ie-'+p.id+'"><td colspan="5"></td></tr>';
+      '<tr class="imgedit hide" id="ie-'+p.id+'"><td colspan="6"></td></tr>';
   }).join('');
   tb.querySelectorAll('[data-pub]').forEach(b=>b.addEventListener('click',()=>publishOne(b.dataset.pub)));
   tb.querySelectorAll('[data-img]').forEach(b=>b.addEventListener('click',()=>toggleImgEdit(b.dataset.img)));
+  tb.querySelectorAll('.qsel').forEach(c=>c.addEventListener('change',updateSelCount));
+  updateSelCount();
 }
 
 function toggleImgEdit(id){
@@ -324,17 +330,31 @@ function toggleImgEdit(id){
 }
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
 
+function selectedIds(){return Array.from(document.querySelectorAll('.qsel:checked')).map(c=>c.dataset.id);}
+function updateSelCount(){const n=selectedIds().length;const el=$('#selCount');if(el)el.textContent=n;
+  const all=$('#selAll');if(all){const boxes=document.querySelectorAll('.qsel');all.checked=boxes.length>0&&n===boxes.length;}}
+function pubOpts(){return {publish:$('#q_publish').value||undefined,at:$('#q_at').value||undefined,blog:$('#q_blog').value||undefined};}
+
 async function publishOne(id){
   const btn=$('[data-pub="'+id+'"]');if(btn)busy(btn,true,'...');
-  await stream('/api/publish',{id,publish:$('#q_publish').value||undefined,at:$('#q_at').value||undefined,blog:$('#q_blog').value||undefined},$('#publishLog'),ok=>{if(ok)confetti();loadQueue();});
+  await stream('/api/publish',Object.assign({id},pubOpts()),$('#publishLog'),ok=>{if(ok)confetti();loadQueue();});
   if(btn)busy(btn,false);
 }
+$('#btnPublishSel').addEventListener('click',async()=>{
+  const ids=selectedIds();
+  if(!ids.length)return alert('발행할 글을 체크하세요.');
+  if(!confirm('선택한 '+ids.length+'개 글을 발행할까요?'))return;
+  const btn=$('#btnPublishSel');busy(btn,true,'발행 중...');
+  await stream('/api/publish',Object.assign({ids},pubOpts()),$('#publishLog'),ok=>{if(ok)confetti();loadQueue();});
+  busy(btn,false);
+});
 $('#btnPublishAll').addEventListener('click',async()=>{
   if(!confirm('발행대기(ready/draft) 글을 모두 발행할까요?'))return;
   const btn=$('#btnPublishAll');busy(btn,true,'발행 중...');
-  await stream('/api/publish',{all:true,publish:$('#q_publish').value||undefined,at:$('#q_at').value||undefined,blog:$('#q_blog').value||undefined},$('#publishLog'),ok=>{if(ok)confetti();loadQueue();});
+  await stream('/api/publish',Object.assign({all:true},pubOpts()),$('#publishLog'),ok=>{if(ok)confetti();loadQueue();});
   busy(btn,false);
 });
+document.addEventListener('change',e=>{if(e.target.id==='selAll'){document.querySelectorAll('.qsel').forEach(c=>c.checked=e.target.checked);updateSelCount();}});
 $('#btnRefresh').addEventListener('click',loadQueue);
 $('#btnDownload').addEventListener('click',()=>location.href='/api/queue/download');
 $('#btnSync').addEventListener('click',async()=>{const r=await(await fetch('/api/queue/sync',{method:'POST'})).json();alert('엑셀 편집 반영: '+(r.updated||0)+'건');loadQueue();});

@@ -219,9 +219,16 @@ const server = http.createServer(async (req, res) => {
       const log = (l) => res.write(l.endsWith('\n') ? l : l + '\n');
       try {
         let targets = [];
-        if (body.id) { const p = store.getPost(body.id); if (p) targets = [p]; }
-        else if (body.all) targets = store.listPosts().filter((p) => ['ready', 'draft'].includes(p.status));
+        if (Array.isArray(body.ids) && body.ids.length) {
+          targets = body.ids.map((id) => store.getPost(id)).filter(Boolean);
+        } else if (body.id) {
+          const p = store.getPost(body.id); if (p) targets = [p];
+        } else if (body.all) {
+          targets = store.listPosts().filter((p) => ['ready', 'draft'].includes(p.status));
+          if (body.limit) targets = targets.slice(0, Number(body.limit)); // 앞에서 N개만
+        }
         if (!targets.length) { log('발행할 대상이 없습니다.'); return res.end(); }
+        log(`발행 대상 ${targets.length}건`);
         let ok = 0;
         for (const p of targets) {
           const r = await publishOne(p, { publish: body.publish, at: body.at, blog: body.blog }, log);
