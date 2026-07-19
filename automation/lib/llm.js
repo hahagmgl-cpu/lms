@@ -38,7 +38,20 @@ async function callOpenAI(prompt, opts = {}) {
       temperature: opts.temperature ?? 0.7,
     }),
   });
-  if (!res.ok) throw new Error(`OpenAI API 오류 ${res.status}: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.text();
+    if (res.status === 429 && /insufficient_quota/.test(body)) {
+      throw new Error(
+        'OpenAI 크레딧(잔액)이 없습니다. OpenAI API는 유료라 선불 충전이 필요합니다 ' +
+          '(ChatGPT Plus 구독과 별개). 결제: https://platform.openai.com/settings/organization/billing\n' +
+          '→ 무료로 쓰려면 설정에서 공급자를 "제미나이(gemini)"로 바꾸세요.'
+      );
+    }
+    if (res.status === 401) {
+      throw new Error('OpenAI 키가 유효하지 않습니다(.env 의 OPENAI_API_KEY 확인). 키 발급: https://platform.openai.com/api-keys');
+    }
+    throw new Error(`OpenAI API 오류 ${res.status}: ${body}`);
+  }
   const data = await res.json();
   return { text: data.choices[0].message.content, model };
 }
