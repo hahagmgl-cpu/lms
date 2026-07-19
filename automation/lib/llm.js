@@ -116,11 +116,15 @@ function parseJsonResponse(text) {
   const cleaned = text.replace(/```json\s*|```\s*/g, '');
   const m = cleaned.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('응답에서 JSON을 찾지 못했습니다:\n' + text.slice(0, 800));
-  const candidates = [m[0]];
-  // 복구1: 후행 콤마 제거
-  candidates.push(m[0].replace(/,(\s*[}\]])/g, '$1'));
-  // 복구2: 문자열 안의 날것 제어문자(줄바꿈/탭)를 공백으로
-  candidates.push(m[0].replace(/[\r\n\t]/g, ' ').replace(/,(\s*[}\]])/g, '$1'));
+  const noTrailComma = (s) => s.replace(/,(\s*[}\]])/g, '$1');
+  // 모든 제어문자(U+0000~U+001F: 줄바꿈·탭·수직탭·폼피드 등)를 공백으로.
+  // JSON 문자열 안의 이스케이프 안 된 제어문자가 "Bad control character" 오류의 원인.
+  const stripCtrl = (s) => s.replace(/[\u0000-\u001f]+/g, ' ');
+  const candidates = [
+    m[0],
+    noTrailComma(m[0]),
+    noTrailComma(stripCtrl(m[0])),
+  ];
   let lastErr;
   for (const c of candidates) {
     try { return JSON.parse(c); } catch (e) { lastErr = e; }
