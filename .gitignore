@@ -1,0 +1,13 @@
+node_modules/
+.env
+automation/state.json
+shots/
+*.log
+
+# 사용자 설정 오버라이드 (모델 교체 등) — 기본값은 config/defaults.json
+config/config.json
+
+# 생산된 콘텐츠 큐 (글·이미지·인덱스) — 로컬 작업물
+content/queue/
+content/generated.json
+content/post-*.json

@@ -1,0 +1,22 @@
+{
+  "name": "tistory-auto-posting",
+  "version": "1.0.0",
+  "description": "Tistory blog auto-posting via Playwright (login, write, scheduled publish)",
+  "scripts": {
+    "gui": "node automation/server.js",
+    "login": "node automation/login.js",
+    "produce": "node automation/produce.js",
+    "publish": "node automation/publish-queue.js",
+    "generate": "node automation/generate.js",
+    "gen-image": "node automation/gen-image.js",
+    "post": "node automation/post.js",
+    "auto": "node automation/auto.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.61.1",
+    "xlsx": "^0.18.5"
+  }
+}
