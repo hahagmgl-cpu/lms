@@ -51,7 +51,7 @@ function textModel(cfg, provider) {
 }
 
 function imageModel(cfg, provider) {
-  const envMap = { pollinations: 'POLLINATIONS_MODEL', together: 'TOGETHER_IMAGE_MODEL', openai: 'OPENAI_IMAGE_MODEL' };
+  const envMap = { pollinations: 'POLLINATIONS_MODEL', huggingface: 'HF_IMAGE_MODEL', together: 'TOGETHER_IMAGE_MODEL', openai: 'OPENAI_IMAGE_MODEL' };
   return process.env[envMap[provider]] || (cfg.image.models || {})[provider];
 }
 

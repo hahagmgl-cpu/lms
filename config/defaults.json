@@ -16,6 +16,7 @@
     "provider": "pollinations",
     "models": {
       "pollinations": "flux",
+      "huggingface": "black-forest-labs/FLUX.1-schnell",
       "together": "black-forest-labs/FLUX.1-schnell-Free",
       "openai": "gpt-image-1"
     },

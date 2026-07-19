@@ -139,7 +139,7 @@
         <div class="field"><label>글 생성 AI</label>
           <select id="p_provider"><option value="">설정 기본값</option><option value="openai">GPT</option><option value="gemini">제미나이</option><option value="claude">Claude</option></select></div>
         <div class="field"><label>이미지 생성</label>
-          <select id="p_imgProvider"><option value="">설정 기본값</option><option value="pollinations">Pollinations(무료)</option><option value="together">Together</option><option value="openai">OpenAI</option></select></div>
+          <select id="p_imgProvider"><option value="">설정 기본값</option><option value="pollinations">Pollinations</option><option value="huggingface">Hugging Face(무료)</option><option value="together">Together</option><option value="openai">OpenAI</option></select></div>
         <div class="field"><label>이미지 개수</label><input id="p_imgs" type="number" value="1" min="0" max="5"></div>
       </div>
       <div class="grid">
@@ -190,8 +190,9 @@
       <div class="modelrow"><span>Claude 모델</span><input id="s_m_claude"></div>
 
       <label style="margin-top:20px">이미지 생성 기본 공급자</label>
-      <select id="s_imgProvider"><option value="pollinations">Pollinations (무료)</option><option value="together">Together</option><option value="openai">OpenAI</option></select>
+      <select id="s_imgProvider"><option value="pollinations">Pollinations</option><option value="huggingface">Hugging Face (무료)</option><option value="together">Together</option><option value="openai">OpenAI</option></select>
       <div class="modelrow"><span>Pollinations</span><input id="s_i_pollinations"></div>
+      <div class="modelrow"><span>Hugging Face</span><input id="s_i_huggingface"></div>
       <div class="modelrow"><span>Together</span><input id="s_i_together"></div>
       <div class="modelrow"><span>OpenAI</span><input id="s_i_openai"></div>
       <div class="grid" style="margin-top:14px">
@@ -345,13 +346,13 @@ async function loadConfig(){
   $('#s_textProvider').value=c.text.provider;
   $('#s_m_openai').value=c.text.models.openai||'';$('#s_m_gemini').value=c.text.models.gemini||'';$('#s_m_claude').value=c.text.models.claude||'';
   $('#s_imgProvider').value=c.image.provider;
-  $('#s_i_pollinations').value=c.image.models.pollinations||'';$('#s_i_together').value=c.image.models.together||'';$('#s_i_openai').value=c.image.models.openai||'';
+  $('#s_i_pollinations').value=c.image.models.pollinations||'';$('#s_i_huggingface').value=(c.image.models.huggingface)||'';$('#s_i_together').value=c.image.models.together||'';$('#s_i_openai').value=c.image.models.openai||'';
   $('#s_width').value=c.image.width;$('#s_height').value=c.image.height;$('#s_count').value=c.image.count;
   $('#s_blog').value=c.post.blog||'';$('#s_defpub').value=c.post.defaultPublish||'draft';
 }
 $('#btnSaveCfg').addEventListener('click',async()=>{
   const body={text:{provider:$('#s_textProvider').value,models:{openai:$('#s_m_openai').value,gemini:$('#s_m_gemini').value,claude:$('#s_m_claude').value}},
-    image:{provider:$('#s_imgProvider').value,models:{pollinations:$('#s_i_pollinations').value,together:$('#s_i_together').value,openai:$('#s_i_openai').value},width:Number($('#s_width').value),height:Number($('#s_height').value),count:Number($('#s_count').value)},
+    image:{provider:$('#s_imgProvider').value,models:{pollinations:$('#s_i_pollinations').value,huggingface:$('#s_i_huggingface').value,together:$('#s_i_together').value,openai:$('#s_i_openai').value},width:Number($('#s_width').value),height:Number($('#s_height').value),count:Number($('#s_count').value)},
     post:{blog:$('#s_blog').value,defaultPublish:$('#s_defpub').value}};
   const btn=$('#btnSaveCfg');busy(btn,true,'저장 중...');
   try{const r=await(await fetch('/api/config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).json();

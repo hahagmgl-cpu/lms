@@ -1,12 +1,12 @@
 // 이미지 생성 공급자 래퍼 — 프롬프트 → 이미지 파일 저장
-// 지원: pollinations(무료, 키 불필요) / together(FLUX schnell) / openai(gpt-image-1)
+// 지원: pollinations / huggingface / together / openai
 //
 // 반환: 저장된 파일의 절대경로
 
 const fs = require('fs');
 const path = require('path');
 
-const IMG_PROVIDERS = ['pollinations', 'together', 'openai'];
+const IMG_PROVIDERS = ['pollinations', 'huggingface', 'together', 'openai'];
 
 function pickImageProvider(requested) {
   if (requested) {
@@ -17,8 +17,9 @@ function pickImageProvider(requested) {
   }
   if (process.env.IMG_PROVIDER) return pickImageProvider(process.env.IMG_PROVIDER);
   if (process.env.TOGETHER_API_KEY) return 'together';
+  if (process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN) return 'huggingface';
   if (process.env.OPENAI_API_KEY) return 'openai';
-  return 'pollinations'; // 키가 없어도 동작하는 무료 기본값
+  return 'pollinations'; // 키 없이 시도하는 기본값 (무료 잔액 소진 시 402 가능)
 }
 
 async function fetchToFile(url, options, outFile) {
@@ -31,18 +32,55 @@ async function fetchToFile(url, options, outFile) {
   return outFile;
 }
 
-// Pollinations: 무료, API 키 불필요. GET 요청으로 바로 이미지 반환
+// Pollinations: 토큰 없으면 무료 시도(잔액 소진 시 402). 토큰 있으면 Bearer 로 전송.
 async function genPollinations(prompt, outFile, { width, height, seed, model }) {
   model = model || process.env.POLLINATIONS_MODEL || 'flux';
-  const params = new URLSearchParams({
-    width: String(width),
-    height: String(height),
-    nologo: 'true',
-    model,
-  });
+  const token = process.env.POLLINATIONS_TOKEN || process.env.POLLINATIONS_KEY;
+  const params = new URLSearchParams({ width: String(width), height: String(height), nologo: 'true', model });
   if (seed !== undefined) params.set('seed', String(seed));
+  if (process.env.POLLINATIONS_REFERRER) params.set('referrer', process.env.POLLINATIONS_REFERRER);
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params}`;
-  return fetchToFile(url, { method: 'GET' }, outFile);
+  const headers = token ? { authorization: `Bearer ${token}` } : {};
+  const res = await fetch(url, { method: 'GET', headers });
+  if (!res.ok) {
+    const body = (await res.text()).slice(0, 400);
+    if (res.status === 402 || /PAYMENT_REQUIRED|budget too low/i.test(body)) {
+      throw new Error(
+        'Pollinations 무료 잔액(pollen)이 없습니다. 이미지 공급자를 바꾸세요:\n' +
+          '  · 무료: Hugging Face (HF_TOKEN 발급 https://huggingface.co/settings/tokens, IMG_PROVIDER=huggingface)\n' +
+          '  · 무료: Together FLUX (TOGETHER_API_KEY https://api.together.xyz, IMG_PROVIDER=together)\n' +
+          '  · 또는 Pollinations 토큰 발급 후 .env 에 POLLINATIONS_TOKEN 설정\n원문: ' + body
+      );
+    }
+    throw new Error(`Pollinations 이미지 오류 ${res.status}: ${body}`);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length < 100) throw new Error('Pollinations 응답이 너무 작습니다(생성 실패).');
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
+  fs.writeFileSync(outFile, buf);
+  return outFile;
+}
+
+// Hugging Face Inference: 무료 등급 제공 (무료 토큰 필요). FLUX.1-schnell 이미지 바이트 반환.
+async function genHuggingFace(prompt, outFile, { model }) {
+  const key = process.env.HF_TOKEN || process.env.HUGGINGFACE_TOKEN;
+  if (!key) throw new Error('.env 에 HF_TOKEN 을 설정하세요 (무료 발급: https://huggingface.co/settings/tokens).');
+  model = model || process.env.HF_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell';
+  const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+    body: JSON.stringify({ inputs: prompt }),
+  });
+  if (!res.ok) {
+    const body = (await res.text()).slice(0, 400);
+    if (res.status === 503) throw new Error('Hugging Face 모델 로딩 중입니다. 잠시 후 다시 시도하세요.\n' + body);
+    throw new Error(`Hugging Face 이미지 오류 ${res.status}: ${body}`);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length < 100) throw new Error('Hugging Face 응답이 너무 작습니다(생성 실패).');
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
+  fs.writeFileSync(outFile, buf);
+  return outFile;
 }
 
 // Together AI: FLUX.1 schnell (매우 저렴). base64 응답
@@ -94,7 +132,7 @@ async function generateImage(prompt, outFile, opts = {}) {
   const provider = pickImageProvider(opts.provider);
   const width = opts.width || 1024;
   const height = opts.height || 576; // 16:9 기본
-  const fn = { pollinations: genPollinations, together: genTogether, openai: genOpenAI }[provider];
+  const fn = { pollinations: genPollinations, huggingface: genHuggingFace, together: genTogether, openai: genOpenAI }[provider];
   console.log(`  이미지 생성(${provider}, ${width}x${height}): "${prompt.slice(0, 60)}..."`);
   return fn(prompt, outFile, { width, height, seed: opts.seed, model: opts.model });
 }
