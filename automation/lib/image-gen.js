@@ -32,8 +32,8 @@ async function fetchToFile(url, options, outFile) {
 }
 
 // Pollinations: 무료, API 키 불필요. GET 요청으로 바로 이미지 반환
-async function genPollinations(prompt, outFile, { width, height, seed }) {
-  const model = process.env.POLLINATIONS_MODEL || 'flux';
+async function genPollinations(prompt, outFile, { width, height, seed, model }) {
+  model = model || process.env.POLLINATIONS_MODEL || 'flux';
   const params = new URLSearchParams({
     width: String(width),
     height: String(height),
@@ -46,10 +46,10 @@ async function genPollinations(prompt, outFile, { width, height, seed }) {
 }
 
 // Together AI: FLUX.1 schnell (매우 저렴). base64 응답
-async function genTogether(prompt, outFile, { width, height }) {
+async function genTogether(prompt, outFile, { width, height, model }) {
   const key = process.env.TOGETHER_API_KEY;
   if (!key) throw new Error('.env 에 TOGETHER_API_KEY 를 설정하세요.');
-  const model = process.env.TOGETHER_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell-Free';
+  model = model || process.env.TOGETHER_IMAGE_MODEL || 'black-forest-labs/FLUX.1-schnell-Free';
   const res = await fetch('https://api.together.xyz/v1/images/generations', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
@@ -88,7 +88,7 @@ async function genOpenAI(prompt, outFile, { width, height }) {
  * 이미지 한 장 생성
  * @param {string} prompt 영문 이미지 프롬프트
  * @param {string} outFile 저장 경로
- * @param {object} opts { width, height, seed, provider }
+ * @param {object} opts { width, height, seed, provider, model }
  */
 async function generateImage(prompt, outFile, opts = {}) {
   const provider = pickImageProvider(opts.provider);
@@ -96,7 +96,7 @@ async function generateImage(prompt, outFile, opts = {}) {
   const height = opts.height || 576; // 16:9 기본
   const fn = { pollinations: genPollinations, together: genTogether, openai: genOpenAI }[provider];
   console.log(`  이미지 생성(${provider}, ${width}x${height}): "${prompt.slice(0, 60)}..."`);
-  return fn(prompt, outFile, { width, height, seed: opts.seed });
+  return fn(prompt, outFile, { width, height, seed: opts.seed, model: opts.model });
 }
 
 module.exports = { generateImage, pickImageProvider, IMG_PROVIDERS };

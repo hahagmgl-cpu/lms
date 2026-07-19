@@ -5,6 +5,8 @@
   "scripts": {
     "gui": "node automation/server.js",
     "login": "node automation/login.js",
+    "produce": "node automation/produce.js",
+    "publish": "node automation/publish-queue.js",
     "generate": "node automation/generate.js",
     "gen-image": "node automation/gen-image.js",
     "post": "node automation/post.js",
@@ -14,6 +16,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "playwright": "^1.61.1"
+    "playwright": "^1.61.1",
+    "xlsx": "^0.18.5"
   }
 }

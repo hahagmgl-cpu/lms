@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const { loadEnv } = require('./lib/env');
 const { generateJson } = require('./lib/llm');
+const cfg = require('./lib/config');
 
 loadEnv();
 
@@ -78,11 +79,20 @@ function buildPrompt(keyword, { imgs, audience, intent }) {
 }
 
 // 키워드 → SEO 글 객체 생성 (GUI/파이프라인에서 재사용)
+// 공급자·모델·이미지수·타깃·니즈는 설정(config)을 기본값으로, opts 로 언제든 덮어씀
 async function generateArticle(keyword, opts = {}) {
   if (!keyword) throw new Error('키워드가 필요합니다.');
-  const imgs = opts.imgs !== undefined ? Number(opts.imgs) : 1;
-  const prompt = buildPrompt(keyword, { imgs, audience: opts.audience, intent: opts.intent });
-  const post = await generateJson(prompt, opts.provider);
+  const c = cfg.load();
+  const provider = opts.provider || c.text.provider;
+  const imgs = opts.imgs !== undefined ? Number(opts.imgs) : (c.image.count ?? 1);
+  const audience = opts.audience || c.seo.audience || undefined;
+  const intent = opts.intent || c.seo.intent || undefined;
+  const prompt = buildPrompt(keyword, { imgs, audience, intent });
+  const post = await generateJson(prompt, provider, {
+    model: cfg.textModel(c, provider),
+    temperature: c.text.temperature,
+    maxTokens: c.text.maxTokens,
+  });
   if (!post.title || !post.html) {
     throw new Error('생성 결과에 title/html 이 없습니다:\n' + JSON.stringify(post).slice(0, 500));
   }

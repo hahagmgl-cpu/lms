@@ -20,10 +20,10 @@ function pickProvider(requested) {
   );
 }
 
-async function callOpenAI(prompt) {
+async function callOpenAI(prompt, opts = {}) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('.env 에 OPENAI_API_KEY 를 설정하세요.');
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const model = opts.model || process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -35,7 +35,7 @@ async function callOpenAI(prompt) {
         { role: 'user', content: prompt },
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.7,
+      temperature: opts.temperature ?? 0.7,
     }),
   });
   if (!res.ok) throw new Error(`OpenAI API 오류 ${res.status}: ${await res.text()}`);
@@ -43,10 +43,10 @@ async function callOpenAI(prompt) {
   return { text: data.choices[0].message.content, model };
 }
 
-async function callGemini(prompt) {
+async function callGemini(prompt, opts = {}) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error('.env 에 GEMINI_API_KEY 를 설정하세요.');
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = opts.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
@@ -55,7 +55,7 @@ async function callGemini(prompt) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.7 },
+        generationConfig: { responseMimeType: 'application/json', temperature: opts.temperature ?? 0.7 },
       }),
     }
   );
@@ -66,10 +66,10 @@ async function callGemini(prompt) {
   return { text, model };
 }
 
-async function callClaude(prompt) {
+async function callClaude(prompt, opts = {}) {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) throw new Error('.env 에 ANTHROPIC_API_KEY 를 설정하세요.');
-  const model = process.env.CLAUDE_MODEL || 'claude-sonnet-5';
+  const model = opts.model || process.env.CLAUDE_MODEL || 'claude-sonnet-5';
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -80,7 +80,7 @@ async function callClaude(prompt) {
     },
     body: JSON.stringify({
       model,
-      max_tokens: 8192,
+      max_tokens: opts.maxTokens || 8192,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
@@ -97,11 +97,12 @@ function parseJsonResponse(text) {
   return JSON.parse(m[0]);
 }
 
-async function generateJson(prompt, provider) {
+// opts: { model, temperature, maxTokens } — 설정에서 넘긴 모델을 그대로 사용
+async function generateJson(prompt, provider, opts = {}) {
   const p = pickProvider(provider);
   const call = { openai: callOpenAI, gemini: callGemini, claude: callClaude }[p];
   console.log(`공급자: ${p}`);
-  const { text, model } = await call(prompt);
+  const { text, model } = await call(prompt, opts);
   console.log(`모델: ${model}`);
   return parseJsonResponse(text);
 }

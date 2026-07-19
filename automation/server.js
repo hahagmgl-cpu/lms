@@ -13,6 +13,10 @@ const path = require('path');
 const { loadEnv } = require('./lib/env');
 const { generateArticle } = require('./generate');
 const { runPipeline } = require('./auto');
+const { produceOne } = require('./produce');
+const { publishOne } = require('./publish-queue');
+const store = require('./lib/store');
+const cfg = require('./lib/config');
 
 loadEnv();
 
@@ -112,6 +116,103 @@ const server = http.createServer(async (req, res) => {
         log('\n=== 오류 ===');
         log(e.message);
       }
+      return res.end();
+    }
+
+    // --- 설정 (모델 교체) ---
+    if (req.method === 'GET' && url.pathname === '/api/config') {
+      return json(res, 200, cfg.load());
+    }
+    if (req.method === 'POST' && url.pathname === '/api/config') {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const merged = cfg.saveOverride(body);
+      return json(res, 200, { ok: true, config: merged });
+    }
+
+    // --- 큐 ---
+    if (req.method === 'GET' && url.pathname === '/api/queue') {
+      const posts = store.listPosts().map((p) => ({
+        id: p.id, title: p.title, keyword: p.keyword, status: p.status,
+        tags: p.tags, scheduleAt: p.scheduleAt, publishedUrl: p.publishedUrl,
+        images: (p.images || []).map((i) => ({ file: i.file, alt: i.alt })),
+      }));
+      return json(res, 200, { posts, hasExcel: store.hasExcel });
+    }
+    if (req.method === 'GET' && url.pathname === '/api/queue/download') {
+      const file = store.hasExcel && fs.existsSync(store.INDEX_XLSX) ? store.INDEX_XLSX : store.INDEX_CSV;
+      if (!fs.existsSync(file)) return json(res, 404, { error: '인덱스가 아직 없습니다.' });
+      const name = path.basename(file);
+      res.writeHead(200, {
+        'content-type': file.endsWith('.xlsx')
+          ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          : 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="${name}"`,
+      });
+      return res.end(fs.readFileSync(file));
+    }
+    if (req.method === 'POST' && url.pathname === '/api/queue/sync') {
+      const r = store.syncFromIndex();
+      store.writeIndex();
+      return json(res, 200, r);
+    }
+    if (req.method === 'GET' && url.pathname === '/api/queue/get') {
+      const p = store.getPost(url.searchParams.get('id'));
+      return p ? json(res, 200, p) : json(res, 404, { error: '없음' });
+    }
+    if (req.method === 'POST' && url.pathname === '/api/queue/update') {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      if (!body.id) return json(res, 400, { error: 'id 필요' });
+      const patch = {};
+      ['title', 'tags', 'status', 'scheduleAt', 'blog', 'html'].forEach((k) => {
+        if (body[k] !== undefined) patch[k] = body[k];
+      });
+      const p = store.updatePost(body.id, patch);
+      store.writeIndex();
+      return json(res, 200, { ok: true, post: p });
+    }
+
+    // --- 생산: 키워드 → 글+이미지 생성 → 큐 저장 (발행 안 함), 스트리밍 ---
+    if (req.method === 'POST' && url.pathname === '/api/produce') {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      const keywords = (body.keywords || (body.keyword ? [body.keyword] : []))
+        .map((k) => String(k).trim()).filter(Boolean);
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'transfer-encoding': 'chunked' });
+      const log = (l) => res.write(l.endsWith('\n') ? l : l + '\n');
+      if (!keywords.length) { log('키워드가 없습니다.'); return res.end(); }
+      try {
+        let ok = 0;
+        for (const kw of keywords) {
+          try { await produceOne(kw, {
+            provider: body.provider, imgProvider: body.imgProvider,
+            imgs: body.imgs, images: body.images !== false,
+            audience: body.audience, intent: body.intent, blog: body.blog,
+          }, log); ok++; }
+          catch (e) { log(`✗ "${kw}" 실패: ${e.message}`); }
+        }
+        const idx = store.writeIndex();
+        log(`\n=== 성공 === 생산 ${ok}/${keywords.length}건, 인덱스 ${idx.count}건`);
+      } catch (e) { log('\n=== 오류 ===\n' + e.message); }
+      return res.end();
+    }
+
+    // --- 발행: 큐의 특정/전체 글을 티스토리에 발행, 스트리밍 ---
+    if (req.method === 'POST' && url.pathname === '/api/publish') {
+      const body = JSON.parse((await readBody(req)) || '{}');
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'transfer-encoding': 'chunked' });
+      const log = (l) => res.write(l.endsWith('\n') ? l : l + '\n');
+      try {
+        let targets = [];
+        if (body.id) { const p = store.getPost(body.id); if (p) targets = [p]; }
+        else if (body.all) targets = store.listPosts().filter((p) => ['ready', 'draft'].includes(p.status));
+        if (!targets.length) { log('발행할 대상이 없습니다.'); return res.end(); }
+        let ok = 0;
+        for (const p of targets) {
+          const r = await publishOne(p, { publish: body.publish, at: body.at, blog: body.blog }, log);
+          if (r.ok) ok++;
+        }
+        store.writeIndex();
+        log(`\n=== 성공 === 발행 ${ok}/${targets.length}건`);
+      } catch (e) { log('\n=== 오류 ===\n' + e.message); }
       return res.end();
     }
 

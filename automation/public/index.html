@@ -21,109 +21,94 @@
                linear-gradient(160deg,#0a0b0f,#0d1018 60%,#0a0b0f)}
   .grain{position:fixed;inset:0;z-index:-1;opacity:.04;pointer-events:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
-  .wrap{max-width:1040px;margin:0 auto;padding:38px 18px 80px}
+  .wrap{max-width:1080px;margin:0 auto;padding:34px 18px 80px}
 
-  header{display:flex;align-items:center;gap:18px;margin-bottom:8px}
-  .logo3d{width:60px;height:60px;perspective:520px;flex:none}
+  header{display:flex;align-items:center;gap:18px;margin-bottom:6px}
+  .logo3d{width:56px;height:56px;perspective:520px;flex:none}
   .cube{width:100%;height:100%;position:relative;transform-style:preserve-3d;animation:spin 9s linear infinite}
   .cube.turbo{animation-duration:1.6s}
   @keyframes spin{from{transform:rotateX(-24deg) rotateY(0)}to{transform:rotateX(-24deg) rotateY(360deg)}}
-  .face{position:absolute;inset:0;border:1.5px solid rgba(255,255,255,.35);border-radius:11px;
+  .face{position:absolute;inset:0;border:1.5px solid rgba(255,255,255,.35);border-radius:10px;
     background:linear-gradient(135deg,rgba(255,107,53,.55),rgba(79,140,255,.55));
-    box-shadow:inset 0 0 22px rgba(255,255,255,.28);backdrop-filter:blur(2px)}
-  .f1{transform:translateZ(30px)} .f2{transform:rotateY(180deg) translateZ(30px)}
-  .f3{transform:rotateY(90deg) translateZ(30px)} .f4{transform:rotateY(-90deg) translateZ(30px)}
-  .f5{transform:rotateX(90deg) translateZ(30px)} .f6{transform:rotateX(-90deg) translateZ(30px)}
-  h1{font-size:30px;margin:0;font-weight:800;letter-spacing:-.5px;
+    box-shadow:inset 0 0 22px rgba(255,255,255,.28)}
+  .f1{transform:translateZ(28px)} .f2{transform:rotateY(180deg) translateZ(28px)}
+  .f3{transform:rotateY(90deg) translateZ(28px)} .f4{transform:rotateY(-90deg) translateZ(28px)}
+  .f5{transform:rotateX(90deg) translateZ(28px)} .f6{transform:rotateX(-90deg) translateZ(28px)}
+  h1{font-size:27px;margin:0;font-weight:800;letter-spacing:-.5px;
     background:linear-gradient(92deg,#fff 10%,var(--accent) 45%,var(--accent2) 78%,var(--accent3));
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
     background-size:220% auto;animation:shine 7s linear infinite}
   @keyframes shine{to{background-position:220% center}}
   .tag{font-size:12.5px;color:var(--muted);margin-top:3px}
-
-  .badges{display:flex;gap:9px;flex-wrap:wrap;margin:22px 0 26px}
-  .badge{font-size:12px;padding:6px 13px;border-radius:999px;border:1px solid var(--line);
-    background:rgba(255,255,255,.03);display:flex;align-items:center;gap:7px;transition:.3s}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 0 transparent}
+  .badges{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 18px}
+  .badge{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);
+    background:rgba(255,255,255,.03);display:flex;align-items:center;gap:6px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
   .badge.on{border-color:rgba(34,197,94,.5);color:#c9f7d6}
-  .badge.on .dot{background:var(--ok);box-shadow:0 0 10px 1px rgba(34,197,94,.8);animation:pulse 2s infinite}
-  @keyframes pulse{50%{box-shadow:0 0 14px 3px rgba(34,197,94,.55)}}
+  .badge.on .dot{background:var(--ok);box-shadow:0 0 10px 1px rgba(34,197,94,.8)}
 
-  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:20px;
-    padding:26px;margin-bottom:20px;backdrop-filter:blur(var(--glass-blur));
-    box-shadow:0 20px 60px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.06);
-    transform-style:preserve-3d;transition:transform .18s ease, box-shadow .3s;
-    opacity:0;translate:0 24px;animation:rise .7s cubic-bezier(.2,.8,.2,1) forwards}
-  .card:nth-child(1){animation-delay:.05s}.card.d2{animation-delay:.12s}
-  @keyframes rise{to{opacity:1;translate:0 0}}
-  .card .glow{position:absolute;inset:-1px;border-radius:20px;pointer-events:none;
-    background:radial-gradient(400px 200px at var(--mx,50%) var(--my,0%),rgba(255,107,53,.14),transparent 70%);
-    opacity:0;transition:opacity .3s}
-  .card:hover .glow{opacity:1}
-  .card h2{font-size:16px;margin:0 0 16px;display:flex;align-items:center;gap:10px}
-  .step{width:26px;height:26px;border-radius:8px;font-size:13px;font-weight:700;flex:none;
+  .tabs{display:flex;gap:6px;margin:6px 0 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .tab{padding:11px 18px;font-size:14px;font-weight:700;color:var(--muted);cursor:pointer;
+    border-bottom:2px solid transparent;transition:.2s;user-select:none}
+  .tab:hover{color:var(--fg)}
+  .tab.active{color:var(--fg);border-bottom-color:var(--accent)}
+
+  .card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:18px;
+    padding:24px;margin-bottom:18px;backdrop-filter:blur(var(--glass-blur));
+    box-shadow:0 20px 60px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.06)}
+  .card h2{font-size:15px;margin:0 0 14px;display:flex;align-items:center;gap:9px}
+  .step{width:24px;height:24px;border-radius:7px;font-size:12px;font-weight:700;flex:none;
     display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
 
   label{display:block;font-size:12.5px;font-weight:600;color:#c4cbd6;margin:14px 0 6px}
   input,select,textarea{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:11px;
     background:rgba(0,0,0,.32);color:var(--fg);font-size:14px;font-family:inherit;transition:.2s;outline:none}
   input:focus,select:focus,textarea:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(79,140,255,.18)}
-  textarea{min-height:150px;resize:vertical;line-height:1.6;font-size:13px}
+  textarea{min-height:110px;resize:vertical;line-height:1.6}
   select option{background:#14161d}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px}
-  .field small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+  .field small{color:var(--muted);font-size:11px;font-weight:400}
 
-  .btns{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
-  .btn{position:relative;border:none;border-radius:12px;padding:13px 22px;font-size:14px;font-weight:700;
-    cursor:pointer;color:#fff;overflow:hidden;transition:transform .12s, box-shadow .3s;isolation:isolate}
+  .btns{display:flex;gap:11px;margin-top:20px;flex-wrap:wrap}
+  .btn{position:relative;border:none;border-radius:12px;padding:12px 20px;font-size:14px;font-weight:700;
+    cursor:pointer;color:#fff;overflow:hidden;transition:transform .12s,box-shadow .3s}
   .btn:active{transform:scale(.97)}
   .btn::before{content:"";position:absolute;inset:0;z-index:-1;transition:.3s}
   .btn-primary::before{background:linear-gradient(120deg,var(--accent),#ff8f5e)}
   .btn-go::before{background:linear-gradient(120deg,var(--ok),#4ade80)}
+  .btn-blue::before{background:linear-gradient(120deg,var(--accent2),#6ea8ff)}
   .btn-ghost{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--fg)}
-  .btn-primary:hover,.btn-go:hover{box-shadow:0 12px 34px -12px rgba(255,107,53,.8);transform:translateY(-1px)}
-  .btn .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.5);
-    transform:translate(-50%,-50%) scale(0);animation:rip .6s ease-out;pointer-events:none}
-  @keyframes rip{to{transform:translate(-50%,-50%) scale(24);opacity:0}}
+  .btn-sm{padding:7px 13px;font-size:12.5px;border-radius:9px}
+  .btn-primary:hover,.btn-go:hover,.btn-blue:hover{box-shadow:0 12px 30px -12px rgba(255,107,53,.7);transform:translateY(-1px)}
   .btn:disabled{opacity:.55;cursor:not-allowed}
-  .btn .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.4);
-    border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:7px}
+  .btn .spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.4);
+    border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
   @keyframes sp{to{transform:rotate(360deg)}}
   .hint{font-size:12px;color:var(--muted);margin-top:12px}
-
   .hide{display:none!important}
-  .imgcard{border:1px solid var(--line);border-radius:12px;padding:13px;margin-top:11px;
-    background:rgba(255,255,255,.02)}
-  .imgcard b{color:var(--accent3);font-size:12px}
-  .imgcard input{margin-top:5px;font-size:12.5px}
-  .imgcard small{display:block;color:var(--muted);font-size:11px;margin-top:7px;line-height:1.5}
-
-  /* processing rig */
-  .rig{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
-  .orbwrap{width:96px;height:96px;perspective:600px;flex:none}
-  .steps{flex:1;min-width:220px;display:flex;flex-direction:column;gap:10px}
-  .strow{display:flex;align-items:center;gap:11px;font-size:13.5px;color:var(--muted);transition:.3s}
-  .strow .ic{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);flex:none;
-    display:grid;place-items:center;font-size:12px;transition:.3s}
-  .strow.active{color:var(--fg)}
-  .strow.active .ic{border-color:var(--accent2);box-shadow:0 0 12px rgba(79,140,255,.5)}
-  .strow.done{color:#b7f0c6}
-  .strow.done .ic{border-color:var(--ok);background:var(--ok);color:#062;box-shadow:0 0 12px rgba(34,197,94,.6)}
 
   pre.log{background:linear-gradient(180deg,rgba(0,0,0,.6),rgba(0,0,0,.45));border:1px solid var(--line);
-    color:#bfe9c9;padding:16px;border-radius:13px;font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;
-    white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;margin:16px 0 0}
+    color:#bfe9c9;padding:15px;border-radius:12px;font:12px/1.6 ui-monospace,Menlo,monospace;
+    white-space:pre-wrap;word-break:break-word;max-height:300px;overflow:auto;margin:14px 0 0}
   .log .ok{color:#7ef0a2}.log .er{color:#ff8ba0}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-size:11.5px;font-weight:600}
+  .pill{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+  .st-draft{color:#cbd5e1}.st-ready{color:#7ec8ff;border-color:rgba(79,140,255,.5)}
+  .st-scheduled{color:#ffd27e;border-color:rgba(255,193,102,.5)}
+  .st-published{color:#7ef0a2;border-color:rgba(34,197,94,.5)}.st-failed{color:#ff8ba0;border-color:rgba(244,80,108,.5)}
+  .qtitle{font-weight:600}.qmeta{color:var(--muted);font-size:11.5px;margin-top:3px}
+  .rowbtns{display:flex;gap:6px;flex-wrap:wrap}
   #confetti{position:fixed;inset:0;z-index:50;pointer-events:none}
-  a{color:var(--accent2)}
-  .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:30px}
+  a{color:var(--accent2)} .foot{text-align:center;color:var(--muted);font-size:11.5px;margin-top:26px}
+  .modelrow{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;margin-top:8px}
+  .modelrow span{font-size:12.5px;color:var(--muted)}
 </style>
 </head>
 <body>
-<canvas id="bg"></canvas>
-<div id="bgFallback"></div>
-<div class="grain"></div>
-<canvas id="confetti"></canvas>
+<canvas id="bg"></canvas><div id="bgFallback"></div><div class="grain"></div><canvas id="confetti"></canvas>
 
 <div class="wrap">
   <header>
@@ -133,246 +118,219 @@
     </div></div>
     <div>
       <h1>Tistory AutoPilot</h1>
-      <div class="tag">키워드 하나로 · SEO 글 생성 → 이미지 생성 → 예약/발행까지 자동</div>
+      <div class="tag">생성은 미리 · 발행은 원할 때 · 모델은 언제든 교체</div>
     </div>
   </header>
-
   <div class="badges" id="badges"></div>
 
-  <!-- STEP 1 -->
-  <section class="card tilt">
-    <div class="glow"></div>
-    <h2><span class="step">1</span> 무엇을 쓸까요?</h2>
-    <label>키워드 *</label>
-    <input id="keyword" placeholder="예: 제주도 겨울 여행 코스, 2026 노트북 추천, 홈트레이닝 루틴" />
-    <div class="grid" style="margin-top:6px">
-      <div class="field"><label>글 생성 AI</label>
-        <select id="provider"><option value="">자동 선택</option><option value="openai">GPT (OpenAI)</option><option value="gemini">제미나이 (Gemini)</option><option value="claude">Claude</option></select></div>
-      <div class="field"><label>이미지 생성</label>
-        <select id="imgProvider"><option value="">자동 (무료 Pollinations)</option><option value="pollinations">Pollinations (무료)</option><option value="together">Together (FLUX)</option><option value="openai">OpenAI</option></select></div>
-      <div class="field"><label>이미지 개수</label>
-        <input id="imgs" type="number" value="1" min="0" max="5" /></div>
-    </div>
-    <div class="grid">
-      <div class="field"><label>타깃 독자 <small>선택</small></label><input id="audience" placeholder="예: 아이 동반 가족" /></div>
-      <div class="field"><label>검색 니즈 <small>선택</small></label><input id="intent" placeholder="예: 일정표와 예상 경비" /></div>
-    </div>
-    <div class="btns">
-      <button class="btn btn-primary" id="btnPreview">✨ 미리보기 생성</button>
-    </div>
-    <div class="hint">먼저 글만 만들어 확인·수정한 뒤 발행하세요.</div>
-  </section>
+  <div class="tabs">
+    <div class="tab active" data-tab="produce">① 생산 (글·이미지 만들기)</div>
+    <div class="tab" data-tab="queue">② 큐 · 발행</div>
+    <div class="tab" data-tab="settings">⚙ 설정 (모델)</div>
+  </div>
 
-  <!-- STEP 2 -->
-  <section class="card tilt d2 hide" id="previewCard">
-    <div class="glow"></div>
-    <h2><span class="step">2</span> 확인하고 다듬기</h2>
-    <div id="pvIntent" class="hint" style="margin:0 0 10px"></div>
-    <label>제목</label><input id="pvTitle" />
-    <label>태그 <small>쉼표로 구분</small></label><input id="pvTags" />
-    <label>본문 HTML <small>{{IMAGE_n}} 위치에 이미지가 삽입됩니다</small></label>
-    <textarea id="pvHtml"></textarea>
-    <div id="pvImages"></div>
-    <div class="grid" style="margin-top:16px">
-      <div class="field"><label>발행 방식</label>
-        <select id="publish"><option value="draft">임시저장 (안전)</option><option value="reserve">예약 발행</option><option value="now">즉시 발행</option></select></div>
-      <div class="field"><label>예약 시각</label><input id="at" type="datetime-local" /></div>
-      <div class="field"><label>블로그 서브도메인</label><input id="blog" placeholder="record7518" /></div>
-    </div>
-    <div class="btns">
-      <button class="btn btn-go" id="btnRun">🚀 이미지 생성 + 발행</button>
-      <button class="btn btn-ghost" id="btnRegen">↻ 다시 생성</button>
-    </div>
-  </section>
-
-  <!-- RUN -->
-  <section class="card d2 hide" id="runCard">
-    <div class="glow"></div>
-    <h2><span class="step">3</span> 실행</h2>
-    <div class="rig">
-      <div class="orbwrap"><canvas id="orb" width="192" height="192" style="width:96px;height:96px"></canvas></div>
-      <div class="steps" id="stepList">
-        <div class="strow" data-k="write"><span class="ic">1</span> 글 준비</div>
-        <div class="strow" data-k="image"><span class="ic">2</span> 이미지 생성</div>
-        <div class="strow" data-k="publish"><span class="ic">3</span> 티스토리 발행</div>
+  <!-- ===== 생산 ===== -->
+  <div id="panel-produce">
+    <div class="card">
+      <h2><span class="step">1</span> 키워드로 글·이미지 생성 → 큐에 저장</h2>
+      <label>키워드 <small>여러 개면 줄바꿈으로 (한 줄에 하나씩 일괄 생산)</small></label>
+      <textarea id="keywords" placeholder="제주도 겨울 여행 코스&#10;2026 노트북 추천&#10;홈트레이닝 초보 루틴"></textarea>
+      <div class="grid">
+        <div class="field"><label>글 생성 AI</label>
+          <select id="p_provider"><option value="">설정 기본값</option><option value="openai">GPT</option><option value="gemini">제미나이</option><option value="claude">Claude</option></select></div>
+        <div class="field"><label>이미지 생성</label>
+          <select id="p_imgProvider"><option value="">설정 기본값</option><option value="pollinations">Pollinations(무료)</option><option value="together">Together</option><option value="openai">OpenAI</option></select></div>
+        <div class="field"><label>이미지 개수</label><input id="p_imgs" type="number" value="1" min="0" max="5"></div>
       </div>
+      <div class="grid">
+        <div class="field"><label>타깃 독자 <small>선택</small></label><input id="p_audience" placeholder="예: 아이 동반 가족"></div>
+        <div class="field"><label>검색 니즈 <small>선택</small></label><input id="p_intent" placeholder="예: 일정표·예상 경비"></div>
+      </div>
+      <div class="btns">
+        <button class="btn btn-primary" id="btnProduce">✨ 생산 시작 (발행 안 함)</button>
+      </div>
+      <div class="hint">여기서는 글과 이미지를 만들어 <b>큐에 저장</b>만 합니다. 발행은 ②탭에서 원할 때 하세요.</div>
+      <pre class="log hide" id="produceLog"></pre>
     </div>
-    <pre class="log" id="log"></pre>
-  </section>
+  </div>
 
-  <div class="foot">Tistory AutoPilot · 로컬에서 실행 · 계정 정보는 이 컴퓨터를 벗어나지 않습니다</div>
+  <!-- ===== 큐 ===== -->
+  <div id="panel-queue" class="hide">
+    <div class="card">
+      <h2><span class="step">2</span> 큐 · 발행</h2>
+      <div class="btns" style="margin-top:0">
+        <button class="btn btn-ghost btn-sm" id="btnRefresh">↻ 새로고침</button>
+        <button class="btn btn-ghost btn-sm" id="btnDownload">⬇ 엑셀 다운로드</button>
+        <button class="btn btn-ghost btn-sm" id="btnSync">⬆ 엑셀 편집 반영</button>
+      </div>
+      <div class="grid" style="margin-top:16px">
+        <div class="field"><label>발행 방식</label>
+          <select id="q_publish"><option value="">각 글 설정대로</option><option value="draft">임시저장</option><option value="reserve">예약</option><option value="now">즉시</option></select></div>
+        <div class="field"><label>예약 시각 <small>예약일 때</small></label><input id="q_at" type="datetime-local"></div>
+        <div class="field"><label>블로그</label><input id="q_blog" placeholder="record7518"></div>
+      </div>
+      <div class="btns">
+        <button class="btn btn-go" id="btnPublishAll">🚀 발행대기 전체 발행</button>
+      </div>
+      <div style="overflow-x:auto;margin-top:16px">
+        <table id="qtable"><thead><tr><th>상태</th><th>제목 / 키워드</th><th>이미지</th><th>예약</th><th></th></tr></thead><tbody id="qbody"></tbody></table>
+      </div>
+      <pre class="log hide" id="publishLog"></pre>
+    </div>
+  </div>
+
+  <!-- ===== 설정 ===== -->
+  <div id="panel-settings" class="hide">
+    <div class="card">
+      <h2><span class="step">⚙</span> 모델 설정 <small style="font-weight:400;color:var(--muted)">— API가 바뀌어도 여기만 고치면 됩니다</small></h2>
+      <label>글 생성 기본 공급자</label>
+      <select id="s_textProvider"><option value="openai">GPT (OpenAI)</option><option value="gemini">제미나이</option><option value="claude">Claude</option></select>
+      <div class="modelrow"><span>GPT 모델</span><input id="s_m_openai"></div>
+      <div class="modelrow"><span>제미나이 모델</span><input id="s_m_gemini"></div>
+      <div class="modelrow"><span>Claude 모델</span><input id="s_m_claude"></div>
+
+      <label style="margin-top:20px">이미지 생성 기본 공급자</label>
+      <select id="s_imgProvider"><option value="pollinations">Pollinations (무료)</option><option value="together">Together</option><option value="openai">OpenAI</option></select>
+      <div class="modelrow"><span>Pollinations</span><input id="s_i_pollinations"></div>
+      <div class="modelrow"><span>Together</span><input id="s_i_together"></div>
+      <div class="modelrow"><span>OpenAI</span><input id="s_i_openai"></div>
+      <div class="grid" style="margin-top:14px">
+        <div class="field"><label>이미지 폭</label><input id="s_width" type="number"></div>
+        <div class="field"><label>이미지 높이</label><input id="s_height" type="number"></div>
+        <div class="field"><label>기본 이미지 개수</label><input id="s_count" type="number" min="0" max="5"></div>
+      </div>
+      <div class="grid">
+        <div class="field"><label>기본 블로그</label><input id="s_blog" placeholder="record7518"></div>
+        <div class="field"><label>기본 발행 방식</label>
+          <select id="s_defpub"><option value="draft">임시저장</option><option value="reserve">예약</option><option value="now">즉시</option></select></div>
+      </div>
+      <div class="btns"><button class="btn btn-blue" id="btnSaveCfg">💾 설정 저장</button></div>
+      <div class="hint">API 키는 여기가 아니라 <b>.env</b> 에 둡니다. 이 설정은 <b>config/config.json</b> 에 저장되어 기본값을 덮어씁니다.</div>
+    </div>
+  </div>
+
+  <div class="foot">로컬 실행 · 계정 정보는 이 컴퓨터를 벗어나지 않습니다</div>
 </div>
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-let article=null;
 
-/* ---------- WebGL aurora background (self-contained, graceful fallback) ---------- */
-(function(){
-  const cv=$('#bg'); let gl;
-  try{ gl=cv.getContext('webgl'); }catch(e){}
-  if(!gl){ cv.style.display='none'; return; }
-  function rz(){ cv.width=innerWidth; cv.height=innerHeight; gl.viewport(0,0,cv.width,cv.height); }
-  addEventListener('resize',rz); rz();
-  const vs='attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
-  const fs=`precision highp float;uniform vec2 r;uniform float t;
-   float h(vec2 x){return fract(sin(dot(x,vec2(41.3,289.1)))*43758.5);}
-   float n(vec2 x){vec2 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);
-     return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
-   float fbm(vec2 x){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(x);x*=2.02;a*=.5;}return v;}
-   void main(){vec2 uv=gl_FragCoord.xy/r.xy;vec2 q=uv*2.-1.;q.x*=r.x/r.y;
-     float f=fbm(q*1.7+vec2(t*.05,t*.03)+fbm(q*2.+t*.04));
-     vec3 c1=vec3(1.,.42,.21),c2=vec3(.31,.55,1.),c3=vec3(.13,.83,.93);
-     vec3 col=mix(c1,c2,smoothstep(.2,.8,f));col=mix(col,c3,smoothstep(.5,1.,fbm(q*3.-t*.03)));
-     float d=length(uv-.5);col*=1.-d*.9;col=pow(col,vec3(1.3))*.55;
-     gl_FragColor=vec4(col+vec3(.03,.035,.05),1.);}`;
-  function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
-  const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));
-  gl.linkProgram(pr);gl.useProgram(pr);
-  const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);
-  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
-  const lp=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);
-  const ur=gl.getUniformLocation(pr,'r'),ut=gl.getUniformLocation(pr,'t');
-  const t0=performance.now();
-  (function loop(){gl.uniform2f(ur,cv.width,cv.height);gl.uniform1f(ut,(performance.now()-t0)/1000);
-    gl.drawArrays(gl.TRIANGLE_STRIP,0,4);requestAnimationFrame(loop);})();
-})();
+/* WebGL aurora bg */
+(function(){const cv=$('#bg');let gl;try{gl=cv.getContext('webgl')}catch(e){}if(!gl){cv.style.display='none';return;}
+ function rz(){cv.width=innerWidth;cv.height=innerHeight;gl.viewport(0,0,cv.width,cv.height)}addEventListener('resize',rz);rz();
+ const vs='attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
+ const fs='precision highp float;uniform vec2 r;uniform float t;'+
+  'float h(vec2 x){return fract(sin(dot(x,vec2(41.3,289.1)))*43758.5);}'+
+  'float n(vec2 x){vec2 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}'+
+  'float fbm(vec2 x){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(x);x*=2.02;a*=.5;}return v;}'+
+  'void main(){vec2 uv=gl_FragCoord.xy/r.xy;vec2 q=uv*2.-1.;q.x*=r.x/r.y;'+
+  'float f=fbm(q*1.7+vec2(t*.05,t*.03)+fbm(q*2.+t*.04));'+
+  'vec3 c1=vec3(1.,.42,.21),c2=vec3(.31,.55,1.),c3=vec3(.13,.83,.93);'+
+  'vec3 col=mix(c1,c2,smoothstep(.2,.8,f));col=mix(col,c3,smoothstep(.5,1.,fbm(q*3.-t*.03)));'+
+  'float d=length(uv-.5);col*=1.-d*.9;col=pow(col,vec3(1.3))*.5;gl_FragColor=vec4(col+vec3(.03,.035,.05),1.);}';
+ function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
+ const pr=gl.createProgram();gl.attachShader(pr,sh(gl.VERTEX_SHADER,vs));gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(pr);gl.useProgram(pr);
+ const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+ const lp=gl.getAttribLocation(pr,'p');gl.enableVertexAttribArray(lp);gl.vertexAttribPointer(lp,2,gl.FLOAT,false,0,0);
+ const ur=gl.getUniformLocation(pr,'r'),ut=gl.getUniformLocation(pr,'t'),t0=performance.now();
+ (function loop(){gl.uniform2f(ur,cv.width,cv.height);gl.uniform1f(ut,(performance.now()-t0)/1000);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);requestAnimationFrame(loop)})();})();
 
-/* ---------- processing orb (canvas particles) ---------- */
-const orb=(function(){
-  const cv=$('#orb'),x=cv.getContext('2d'),W=192;let on=false,pts=[];
-  for(let i=0;i<70;i++){const a=Math.random()*6.28,r=40+Math.random()*46;
-    pts.push({a,r,s:.4+Math.random()*1.2,z:Math.random()});}
-  function frame(t){ x.clearRect(0,0,W,W); if(!on){return;}
-    const cx=W/2,cy=W/2;
-    for(const p of pts){p.a+=0.006*p.s;const px=cx+Math.cos(p.a)*p.r,py=cy+Math.sin(p.a*1.3)*p.r*.55*(0.6+p.z);
-      const sz=1+p.z*2.4;x.beginPath();x.arc(px,py,sz,0,6.28);
-      x.fillStyle='rgba('+(255-p.z*180|0)+','+(120+p.z*100|0)+','+(90+p.z*160|0)+',.85)';x.fill();}
-    x.beginPath();x.arc(cx,cy,14+Math.sin(t/300)*3,0,6.28);
-    const g=x.createRadialGradient(cx,cy,2,cx,cy,26);g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(1,'rgba(79,140,255,0)');
-    x.fillStyle=g;x.fill();requestAnimationFrame(frame);}
-  return {start(){on=true;requestAnimationFrame(frame);},stop(){on=false;x.clearRect(0,0,W,W);}};
-})();
+/* confetti */
+function confetti(){const cv=$('#confetti'),x=cv.getContext('2d');cv.width=innerWidth;cv.height=innerHeight;
+ const cols=['#ff6b35','#4f8cff','#22d3ee','#22c55e','#ffd166'];
+ const ps=Array.from({length:150},()=>({x:innerWidth/2,y:innerHeight*.3,vx:(Math.random()-.5)*14,vy:Math.random()*-14-4,g:.35+Math.random()*.2,s:5+Math.random()*7,c:cols[Math.random()*cols.length|0],rot:Math.random()*6,vr:(Math.random()-.5)*.4}));
+ (function f(){x.clearRect(0,0,cv.width,cv.height);let al=false;for(const p of ps){p.vy+=p.g;p.x+=p.vx;p.y+=p.vy;p.rot+=p.vr;if(p.y<cv.height+30)al=true;x.save();x.translate(p.x,p.y);x.rotate(p.rot);x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);x.restore();}if(al)requestAnimationFrame(f);else x.clearRect(0,0,cv.width,cv.height)})();}
 
-/* ---------- 3D tilt on cards ---------- */
-$$('.tilt').forEach(c=>{
-  c.addEventListener('mousemove',e=>{const b=c.getBoundingClientRect();
-    const mx=(e.clientX-b.left)/b.width,my=(e.clientY-b.top)/b.height;
-    c.style.transform='perspective(900px) rotateY('+((mx-.5)*6)+'deg) rotateX('+((.5-my)*6)+'deg) translateY(-2px)';
-    c.style.setProperty('--mx',(mx*100)+'%');c.style.setProperty('--my',(my*100)+'%');});
-  c.addEventListener('mouseleave',()=>c.style.transform='');
-});
-
-/* ---------- button ripple ---------- */
-$$('.btn').forEach(b=>b.addEventListener('click',e=>{
-  if(b.disabled)return;const r=document.createElement('span');r.className='ripple';
-  const rc=b.getBoundingClientRect();r.style.left=(e.clientX-rc.left)+'px';r.style.top=(e.clientY-rc.top)+'px';
-  r.style.width=r.style.height='10px';b.appendChild(r);setTimeout(()=>r.remove(),600);
+/* tabs */
+$$('.tab').forEach(t=>t.addEventListener('click',()=>{
+  $$('.tab').forEach(x=>x.classList.remove('active'));t.classList.add('active');
+  ['produce','queue','settings'].forEach(n=>$('#panel-'+n).classList.toggle('hide',n!==t.dataset.tab));
+  if(t.dataset.tab==='queue')loadQueue();
+  if(t.dataset.tab==='settings')loadConfig();
 }));
 
-/* ---------- confetti ---------- */
-function confetti(){
-  const cv=$('#confetti'),x=cv.getContext('2d');cv.width=innerWidth;cv.height=innerHeight;
-  const cols=['#ff6b35','#4f8cff','#22d3ee','#22c55e','#ffd166'];
-  const ps=Array.from({length:160},()=>({x:innerWidth/2,y:innerHeight*.3,
-    vx:(Math.random()-.5)*14,vy:Math.random()*-14-4,g:.35+Math.random()*.2,
-    s:5+Math.random()*7,c:cols[Math.random()*cols.length|0],rot:Math.random()*6,vr:(Math.random()-.5)*.4,life:0}));
-  (function f(){x.clearRect(0,0,cv.width,cv.height);let alive=false;
-    for(const p of ps){p.life++;p.vy+=p.g;p.x+=p.vx;p.y+=p.vy;p.rot+=p.vr;
-      if(p.y<cv.height+30){alive=true;}x.save();x.translate(p.x,p.y);x.rotate(p.rot);
-      x.fillStyle=p.c;x.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);x.restore();}
-    if(alive)requestAnimationFrame(f);else x.clearRect(0,0,cv.width,cv.height);})();
+async function loadEnv(){try{const s=await(await fetch('/api/env')).json();
+  const mk=(on,l)=>'<span class="badge'+(on?' on':'')+'"><span class="dot"></span>'+l+'</span>';
+  $('#badges').innerHTML=mk(s.llm.openai,'GPT')+mk(s.llm.gemini,'제미나이')+mk(s.llm.claude,'Claude')+mk(true,'이미지 무료 가능')+mk(s.loggedIn,'로그인 세션')+mk(!!s.blog,'블로그 '+(s.blog||'미설정'));
+  if(s.blog){$('#q_blog').value=s.blog;}
+}catch(e){}}
+
+function busy(btn,on,txt){btn.disabled=on;btn.dataset.o=btn.dataset.o||btn.innerHTML;btn.innerHTML=on?('<span class="spin"></span>'+txt):btn.dataset.o;}
+async function stream(url,body,logEl,onDone){
+  logEl.classList.remove('hide');logEl.textContent='';let buf='',ok=false;
+  const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+  const rd=r.body.getReader(),dec=new TextDecoder();
+  for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+    if(/=== 성공 ===/.test(buf))ok=true;
+    logEl.innerHTML=buf.replace(/=== 성공 ===/g,'<span class="ok">=== 성공 ===</span>').replace(/=== 오류 ===/g,'<span class="er">=== 오류 ===</span>');
+    logEl.scrollTop=logEl.scrollHeight;}
+  if(onDone)onDone(ok);return ok;
 }
 
-/* ---------- env badges ---------- */
-async function loadEnv(){
-  try{const s=await(await fetch('/api/env')).json();
-    const mk=(on,label)=>'<span class="badge'+(on?' on':'')+'"><span class="dot"></span>'+label+'</span>';
-    $('#badges').innerHTML=
-      mk(s.llm.openai,'GPT')+mk(s.llm.gemini,'제미나이')+mk(s.llm.claude,'Claude')+
-      mk(true,'이미지 무료 가능')+mk(s.loggedIn,'로그인 세션')+mk(!!s.blog,'블로그 '+(s.blog||'미설정'));
-    if(s.blog)$('#blog').value=s.blog;
-    if(!s.llm.openai&&!s.llm.gemini&&!s.llm.claude)
-      $('#badges').innerHTML+='<span class="badge" style="border-color:rgba(244,80,108,.5);color:#ffc2cd">⚠ 글 생성 API 키 없음 (.env 설정 필요)</span>';
-  }catch(e){$('#badges').textContent='환경 상태를 불러오지 못했습니다.';}
-}
-
-function esc(s){return String(s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
-function renderImages(imgs){
-  if(!imgs||!imgs.length){$('#pvImages').innerHTML='';return;}
-  $('#pvImages').innerHTML='<label>이미지 정보 <small>alt·캡션·파일명이 그대로 티스토리에 들어갑니다</small></label>'+
-    imgs.map((im,i)=>'<div class="imgcard"><b>{{IMAGE_'+i+'}}</b>'+
-      '<input data-i="'+i+'" data-k="alt" placeholder="alt (대체텍스트)" value="'+esc(im.alt)+'">'+
-      '<input data-i="'+i+'" data-k="caption" placeholder="caption (캡션)" value="'+esc(im.caption)+'">'+
-      '<input data-i="'+i+'" data-k="filename" placeholder="filename" value="'+esc(im.filename)+'">'+
-      '<small>🎨 프롬프트: '+esc(im.prompt)+'</small></div>').join('');
-  $('#pvImages').oninput=e=>{const t=e.target;if(t.dataset.i===undefined)return;
-    article.images[+t.dataset.i][t.dataset.k]=t.value;};
-}
-function showPreview(a){
-  article=a;
-  $('#pvIntent').textContent=a.searchIntent?('🎯 검색 의도: '+a.searchIntent):'';
-  $('#pvTitle').value=a.title||'';$('#pvTags').value=(a.tags||[]).join(', ');
-  $('#pvHtml').value=a.html||'';renderImages(a.images);
-  $('#previewCard').classList.remove('hide');
-  $('#previewCard').scrollIntoView({behavior:'smooth',block:'start'});
-}
-function busy(btn,on,txt){btn.disabled=on;btn.dataset.o=btn.dataset.o||btn.innerHTML;
-  btn.innerHTML=on?('<span class="spin"></span>'+txt):btn.dataset.o;}
-
-async function doGenerate(){
-  const kw=$('#keyword').value.trim();if(!kw)return alert('키워드를 입력하세요.');
-  const btn=$('#btnPreview');busy(btn,true,'생성 중...');
-  try{
-    const r=await fetch('/api/generate',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({keyword:kw,provider:$('#provider').value||undefined,imgs:Number($('#imgs').value),
-        audience:$('#audience').value||undefined,intent:$('#intent').value||undefined})});
-    const d=await r.json();if(d.error)throw new Error(d.error);showPreview(d.article);
-  }catch(e){alert('오류: '+e.message);}finally{busy(btn,false);}
-}
-$('#btnPreview').addEventListener('click',doGenerate);
-$('#btnRegen').addEventListener('click',doGenerate);
-
-function setStep(k,state){const el=$('.strow[data-k="'+k+'"]');if(!el)return;
-  el.classList.remove('active','done');if(state)el.classList.add(state);
-  if(state==='done')el.querySelector('.ic').textContent='✓';}
-
-$('#btnRun').addEventListener('click',async()=>{
-  if(!article)return alert('먼저 미리보기를 생성하세요.');
-  article.title=$('#pvTitle').value;
-  article.tags=$('#pvTags').value.split(',').map(t=>t.trim()).filter(Boolean);
-  article.html=$('#pvHtml').value;
-  const btn=$('#btnRun');busy(btn,true,'실행 중...');
-  $('#cube').classList.add('turbo');
-  $('#runCard').classList.remove('hide');$('#log').textContent='';
-  ['write','image','publish'].forEach(k=>setStep(k,''));
-  orb.start();$('#runCard').scrollIntoView({behavior:'smooth'});
-  const nImg=Number($('#imgs').value);
-  try{
-    const r=await fetch('/api/run',{method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({article,imgProvider:$('#imgProvider').value||undefined,imgs:nImg,images:nImg>0,
-        publish:$('#publish').value,at:$('#at').value||undefined,blog:$('#blog').value||undefined})});
-    const rd=r.body.getReader(),dec=new TextDecoder();let buf='',ok=false;
-    for(;;){const {done,value}=await rd.read();if(done)break;
-      const chunk=dec.decode(value,{stream:true});buf+=chunk;
-      if(/\[1\/3\]/.test(chunk))setStep('write','active');
-      if(/제목:/.test(chunk)){setStep('write','done');setStep('image',nImg>0?'active':'done');}
-      if(/\[2\/3\]/.test(chunk)&&/건너뜀/.test(chunk))setStep('image','done');
-      if(/\[3\/3\]/.test(chunk)){setStep('image','done');setStep('publish','active');}
-      if(/=== 성공 ===/.test(chunk)){ok=true;setStep('publish','done');}
-      if(/=== 오류 ===/.test(chunk))setStep('publish','active');
-      const html=buf.replace(/=== 성공 ===/g,'<span class="ok">=== 성공 ===</span>')
-        .replace(/=== 오류 ===/g,'<span class="er">=== 오류 ===</span>');
-      $('#log').innerHTML=html;$('#log').scrollTop=$('#log').scrollHeight;}
-    if(ok)confetti();
-  }catch(e){$('#log').textContent+='\n오류: '+e.message;}
-  finally{busy(btn,false);$('#cube').classList.remove('turbo');orb.stop();}
+/* produce */
+$('#btnProduce').addEventListener('click',async()=>{
+  const kws=$('#keywords').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!kws.length)return alert('키워드를 입력하세요.');
+  const btn=$('#btnProduce');busy(btn,true,'생산 중...');$('#cube').classList.add('turbo');
+  try{await stream('/api/produce',{keywords:kws,provider:$('#p_provider').value||undefined,
+    imgProvider:$('#p_imgProvider').value||undefined,imgs:Number($('#p_imgs').value),images:Number($('#p_imgs').value)>0,
+    audience:$('#p_audience').value||undefined,intent:$('#p_intent').value||undefined},$('#produceLog'),
+    ok=>{if(ok)confetti();});
+  }finally{busy(btn,false);$('#cube').classList.remove('turbo');}
 });
 
-/* publish mode → toggle datetime hint */
-$('#publish').addEventListener('change',e=>{
-  $('#at').style.opacity=e.target.value==='reserve'?'1':'.45';});
-$('#publish').dispatchEvent(new Event('change'));
+/* queue */
+async function loadQueue(){
+  const d=await(await fetch('/api/queue')).json();const tb=$('#qbody');
+  if(!d.posts.length){tb.innerHTML='<tr><td colspan="5" style="color:var(--muted)">큐가 비어 있습니다. ①탭에서 생산하세요.</td></tr>';return;}
+  tb.innerHTML=d.posts.map(p=>{
+    const imgs=(p.images||[]).filter(i=>i.file).length;
+    return '<tr><td><span class="pill st-'+p.status+'">'+p.status+'</span></td>'+
+      '<td><div class="qtitle">'+esc(p.title)+'</div><div class="qmeta">'+esc(p.keyword)+' · '+(p.tags||[]).join(', ')+'</div>'+
+      (p.publishedUrl?'<div class="qmeta">🔗 <a href="'+p.publishedUrl+'" target="_blank">'+p.publishedUrl+'</a></div>':'')+'</td>'+
+      '<td>'+imgs+'/'+(p.images||[]).length+'</td>'+
+      '<td>'+(p.scheduleAt?esc(p.scheduleAt):'-')+'</td>'+
+      '<td><div class="rowbtns"><button class="btn btn-go btn-sm" data-pub="'+p.id+'">발행</button></div></td></tr>';
+  }).join('');
+  tb.querySelectorAll('[data-pub]').forEach(b=>b.addEventListener('click',()=>publishOne(b.dataset.pub)));
+}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')}
+
+async function publishOne(id){
+  const btn=$('[data-pub="'+id+'"]');if(btn)busy(btn,true,'...');
+  await stream('/api/publish',{id,publish:$('#q_publish').value||undefined,at:$('#q_at').value||undefined,blog:$('#q_blog').value||undefined},$('#publishLog'),ok=>{if(ok)confetti();loadQueue();});
+  if(btn)busy(btn,false);
+}
+$('#btnPublishAll').addEventListener('click',async()=>{
+  if(!confirm('발행대기(ready/draft) 글을 모두 발행할까요?'))return;
+  const btn=$('#btnPublishAll');busy(btn,true,'발행 중...');
+  await stream('/api/publish',{all:true,publish:$('#q_publish').value||undefined,at:$('#q_at').value||undefined,blog:$('#q_blog').value||undefined},$('#publishLog'),ok=>{if(ok)confetti();loadQueue();});
+  busy(btn,false);
+});
+$('#btnRefresh').addEventListener('click',loadQueue);
+$('#btnDownload').addEventListener('click',()=>location.href='/api/queue/download');
+$('#btnSync').addEventListener('click',async()=>{const r=await(await fetch('/api/queue/sync',{method:'POST'})).json();alert('엑셀 편집 반영: '+(r.updated||0)+'건');loadQueue();});
+
+/* settings */
+let cfgCache=null;
+async function loadConfig(){
+  const c=await(await fetch('/api/config')).json();cfgCache=c;
+  $('#s_textProvider').value=c.text.provider;
+  $('#s_m_openai').value=c.text.models.openai||'';$('#s_m_gemini').value=c.text.models.gemini||'';$('#s_m_claude').value=c.text.models.claude||'';
+  $('#s_imgProvider').value=c.image.provider;
+  $('#s_i_pollinations').value=c.image.models.pollinations||'';$('#s_i_together').value=c.image.models.together||'';$('#s_i_openai').value=c.image.models.openai||'';
+  $('#s_width').value=c.image.width;$('#s_height').value=c.image.height;$('#s_count').value=c.image.count;
+  $('#s_blog').value=c.post.blog||'';$('#s_defpub').value=c.post.defaultPublish||'draft';
+}
+$('#btnSaveCfg').addEventListener('click',async()=>{
+  const body={text:{provider:$('#s_textProvider').value,models:{openai:$('#s_m_openai').value,gemini:$('#s_m_gemini').value,claude:$('#s_m_claude').value}},
+    image:{provider:$('#s_imgProvider').value,models:{pollinations:$('#s_i_pollinations').value,together:$('#s_i_together').value,openai:$('#s_i_openai').value},width:Number($('#s_width').value),height:Number($('#s_height').value),count:Number($('#s_count').value)},
+    post:{blog:$('#s_blog').value,defaultPublish:$('#s_defpub').value}};
+  const btn=$('#btnSaveCfg');busy(btn,true,'저장 중...');
+  try{const r=await(await fetch('/api/config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).json();
+    if(r.ok){btn.dataset.o='✓ 저장됨';setTimeout(()=>btn.innerHTML='💾 설정 저장',1500);loadEnv();}}
+  finally{busy(btn,false);}
+});
 
 loadEnv();
 </script>

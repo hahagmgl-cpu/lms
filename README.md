@@ -4,27 +4,42 @@ Playwright 브라우저 자동화로 [티스토리](https://www.tistory.com/)에
 
 > 티스토리 공식 Open API는 **2024년 2월에 종료**되었습니다. 그래서 브라우저 자동화가 사실상 유일한 프로그래밍 방식의 발행 수단입니다.
 
+## 핵심 설계: 생산과 발행을 분리
+
+```
+①  생산(produce)              ②  발행(publish)
+키워드 → 글·이미지 생성   →   큐에 저장   →   원할 때 개별/일괄 발행 (예약 가능)
+                               (폴더 + 엑셀 인덱스)
+```
+
+- **생산**은 미리 여러 건을 만들어 큐(`content/queue/`)에 쌓아두고, **발행**은 나중에 따로 클릭(개별/일괄).
+- 큐는 글 1건 = 폴더 1개(`post.json` + `images/`)가 **원본**, 전체 목록은 **엑셀/CSV 인덱스**로 한눈에 보고 편집(제목·태그·상태·예약시각을 엑셀에서 고쳐 되돌릴 수 있음).
+- **모델은 언제든 교체** — 모든 공급자·모델명이 `config/defaults.json` 한 곳에. `config/config.json`(또는 GUI 설정 탭)으로 코드 수정 없이 덮어씀. API가 바뀌어도 이 파일만 고치면 됩니다.
+
 ## 구성
 
 ```
+config/
+  defaults.json   # 기본 모델·공급자 설정 (내가 정한 기본값)
+  config.json     # 사용자 오버라이드 (gitignore, GUI 설정 탭이 여기 저장)
 automation/
-  server.js       # 웹 GUI (브라우저에서 클릭으로 사용)
-  auto.js         # 전체 파이프라인: 키워드 → 글 → 이미지 → 발행 (한 방)
-  login.js        # 카카오 계정 로그인 → 세션(state.json) 저장
-  generate.js     # 키워드 → SEO 글 생성 (GPT/제미나이/Claude)
-  gen-image.js    # 글의 이미지 프롬프트 → 이미지 생성 (Pollinations 무료 등)
-  post.js         # 글 작성 + 임시저장/즉시발행/예약발행 CLI
-  lib/tistory.js  # 로그인·글쓰기·이미지업로드 공용 로직 (셀렉터 폴백 포함)
-  lib/llm.js      # GPT/제미나이/Claude 공통 래퍼
-  lib/image-gen.js# 이미지 생성 공급자 래퍼
-  lib/env.js      # .env 로더
-  lib/png.js      # 오프라인 테스트용 placeholder PNG 생성
-content/
-  sample-post.json            # 테스트 글 데이터
-  sample-post-with-image.json # 이미지 포함 테스트 글
-shots/              # 실행 중 단계별 스크린샷 (디버깅용, git 제외)
+  server.js         # 웹 GUI (생산 / 큐·발행 / 설정 탭)
+  produce.js        # ① 생산: 키워드 → 글·이미지 → 큐 저장 (발행 안 함)
+  publish-queue.js  # ② 발행: 큐의 글을 티스토리에 발행 (개별/일괄/예약)
+  auto.js           # 한 방 파이프라인 (생산+즉시발행을 한 번에)
+  login.js          # 카카오 로그인 → 세션(state.json) 저장
+  generate.js       # 키워드 → SEO 글 생성 (GPT/제미나이/Claude)
+  gen-image.js      # 이미지 프롬프트 → 이미지 생성 (Pollinations 무료 등)
+  post.js           # 단일 글 발행 CLI (임시저장/즉시/예약)
+  lib/config.js     # 설정 로더 (defaults + override 병합)
+  lib/store.js      # 큐 저장소 (폴더 원본 + 엑셀/CSV 인덱스)
+  lib/tistory.js    # 로그인·글쓰기·이미지업로드 (셀렉터 폴백)
+  lib/llm.js        # GPT/제미나이/Claude 공통 래퍼 (모델 교체 지원)
+  lib/image-gen.js  # 이미지 생성 공급자 래퍼
+  lib/env.js        # .env 로더
+content/queue/      # 생산된 콘텐츠 큐 (git 제외)
 docs/
-  image-pipeline-plan.md      # 이미지/생성 파이프라인 설계 문서
+  image-pipeline-plan.md
 ```
 
 ## 설치
@@ -44,10 +59,44 @@ cp .env.example .env
 
 ```bash
 node automation/login.js     # 최초 1회 로그인 (아래 참고)
-node automation/server.js    # GUI 실행
+node automation/server.js    # GUI 실행 → http://localhost:3000
 ```
 
-브라우저에서 **http://localhost:3000** 접속 → 키워드 입력 → **① 미리보기 생성** 으로 글을 확인·수정 → 발행 방식(임시저장/예약/즉시) 선택 → **② 이미지 생성 + 발행**. 상단 배지로 어떤 API 키가 준비됐는지, 로그인 세션이 있는지 한눈에 보이고, 진행 상황이 실시간 로그로 표시됩니다.
+3개 탭으로 구성:
+- **① 생산** — 키워드(여러 개면 줄바꿈으로 일괄) 입력 → 글·이미지를 만들어 큐에 저장. 발행은 안 함.
+- **② 큐·발행** — 큐 목록을 보고 개별/일괄 발행(예약 가능). 엑셀 다운로드/편집 반영 버튼 제공.
+- **⚙ 설정** — 공급자·모델·이미지 크기 등을 바꿔 저장(코드 수정 불필요).
+
+상단 배지로 API 키·로그인 세션·블로그 상태가 한눈에 보이고, 진행 상황이 실시간 로그로 표시됩니다.
+
+## CLI로 생산 → 발행 (분리 워크플로)
+
+```bash
+# ① 생산: 여러 키워드를 미리 만들어 큐에 저장 (발행 안 함)
+node automation/produce.js "제주도 겨울 여행" "2026 노트북 추천" "홈트 초보 루틴"
+node automation/produce.js --file keywords.txt           # 파일에서 일괄 (한 줄 = 한 키워드)
+
+# 큐 확인 / 엑셀 편집 반영
+node automation/publish-queue.js --list
+node automation/publish-queue.js --sync                  # 엑셀·CSV로 고친 제목/태그/상태/예약을 반영
+
+# ② 발행: 원할 때 따로 (개별 또는 전체, 예약 가능)
+node automation/publish-queue.js --id 20260720-093000-제주도-겨울-여행 --publish reserve --at "2026-07-21T09:00"
+node automation/publish-queue.js --all --publish reserve --at "2026-07-21T09:00"
+```
+
+생산물은 `content/queue/<id>/`(post.json + images/)에 저장되고, 전체 목록은 `content/queue/index.xlsx`(+`.csv`)로 관리됩니다. 엑셀에서 `status`를 `ready`로, `scheduleAt`에 시각을 넣고 `--sync` 하면 그대로 반영됩니다.
+
+## 모델 교체 (config)
+
+`config/defaults.json` 에 기본값이 있고, 바꾸려면 `config/config.json` 을 만들어 같은 키만 덮어쓰거나 GUI 설정 탭을 쓰면 됩니다. 예:
+
+```json
+{ "text": { "provider": "openai", "models": { "openai": "gpt-4o" } },
+  "image": { "provider": "together" } }
+```
+
+API 키는 `config` 가 아니라 `.env` 에 둡니다. 모델명은 env(`OPENAI_MODEL` 등)로도 덮어쓸 수 있습니다.
 
 ## 한 방 실행: 파이프라인 CLI
 
