@@ -98,22 +98,41 @@ async function callClaude(prompt, opts = {}) {
   return { text: data.content.map((b) => b.text || '').join(''), model };
 }
 
-// 응답 텍스트에서 JSON 객체 파싱 (코드펜스/앞뒤 잡담 방어)
+// 응답 텍스트에서 JSON 객체 파싱 (코드펜스/앞뒤 잡담 + 흔한 깨짐 자동 복구)
 function parseJsonResponse(text) {
   const cleaned = text.replace(/```json\s*|```\s*/g, '');
   const m = cleaned.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('응답에서 JSON을 찾지 못했습니다:\n' + text.slice(0, 800));
-  return JSON.parse(m[0]);
+  const candidates = [m[0]];
+  // 복구1: 후행 콤마 제거
+  candidates.push(m[0].replace(/,(\s*[}\]])/g, '$1'));
+  // 복구2: 문자열 안의 날것 제어문자(줄바꿈/탭)를 공백으로
+  candidates.push(m[0].replace(/[\r\n\t]/g, ' ').replace(/,(\s*[}\]])/g, '$1'));
+  let lastErr;
+  for (const c of candidates) {
+    try { return JSON.parse(c); } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
 }
 
 // opts: { model, temperature, maxTokens } — 설정에서 넘긴 모델을 그대로 사용
+// JSON 파싱 실패 시 최대 3회까지 재생성 (모델 응답이 비결정적이라 대개 재시도로 해결)
 async function generateJson(prompt, provider, opts = {}) {
   const p = pickProvider(provider);
   const call = { openai: callOpenAI, gemini: callGemini, claude: callClaude }[p];
   console.log(`공급자: ${p}`);
-  const { text, model } = await call(prompt, opts);
-  console.log(`모델: ${model}`);
-  return parseJsonResponse(text);
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const { text, model } = await call(prompt, opts);
+    if (attempt === 1) console.log(`모델: ${model}`);
+    try {
+      return parseJsonResponse(text);
+    } catch (e) {
+      lastErr = e;
+      console.log(`  JSON 파싱 실패 (시도 ${attempt}/3): ${e.message}${attempt < 3 ? ' → 재생성' : ''}`);
+    }
+  }
+  throw new Error('여러 번 시도했지만 유효한 JSON을 얻지 못했습니다: ' + lastErr.message);
 }
 
 module.exports = { generateJson, pickProvider, parseJsonResponse, PROVIDERS };
