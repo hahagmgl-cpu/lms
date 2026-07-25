@@ -15,7 +15,7 @@ const INDEX_CSV = path.join(QUEUE_DIR, 'index.csv');
 
 // 엑셀은 있으면 사용, 없으면 CSV만 (라이브러리 미설치 대비)
 let XLSX = null;
-try { XLSX = require('xlsx'); } catch { /* CSV 폴백 */ }
+try { XLSX = require('@e965/xlsx'); } catch { /* CSV 폴백 */ }
 
 // 인덱스에서 사용자가 엑셀로 편집해 되돌릴 수 있는 컬럼
 const EDITABLE = ['title', 'tags', 'status', 'scheduleAt', 'blog'];
@@ -106,8 +106,10 @@ function toRow(p) {
   };
 }
 
+// 수식 트리거 문자(=,+,-,@)로 시작하면 앞에 '(작은따옴표)를 붙여 Excel/CSV에서 수식으로 해석되지 않게 함
 function csvCell(v) {
-  const s = String(v == null ? '' : v);
+  let s = String(v == null ? '' : v);
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 

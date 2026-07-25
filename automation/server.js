@@ -21,6 +21,7 @@ const cfg = require('./lib/config');
 loadEnv();
 
 const PORT = Number(process.env.PORT || process.env.GUI_PORT || 3000);
+const HOST = process.env.GUI_HOST || '127.0.0.1'; // 기본: 로컬만 허용. 외부에 열려면 명시적으로 GUI_HOST=0.0.0.0
 const STATE_FILE = path.join(__dirname, 'state.json');
 
 function readBody(req) {
@@ -248,7 +249,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 function start() {
-  server.listen(PORT, () => {
+  server.listen(PORT, HOST, () => {
     console.log(`\n티스토리 자동화 GUI 실행 중 → http://localhost:${PORT}\n`);
     const s = envStatus();
     console.log('글 생성 키:', Object.entries(s.llm).filter(([, v]) => v).map(([k]) => k).join(', ') || '없음(키 필요)');

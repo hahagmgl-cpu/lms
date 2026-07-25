@@ -258,13 +258,14 @@ async function loadEnv(){try{const s=await(await fetch('/api/env')).json();
 }catch(e){}}
 
 function busy(btn,on,txt){btn.disabled=on;btn.dataset.o=btn.dataset.o||btn.innerHTML;btn.innerHTML=on?('<span class="spin"></span>'+txt):btn.dataset.o;}
+function escHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function stream(url,body,logEl,onDone){
   logEl.classList.remove('hide');logEl.textContent='';let buf='',ok=false;
   const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
   const rd=r.body.getReader(),dec=new TextDecoder();
   for(;;){const{done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
     if(/=== 성공 ===/.test(buf))ok=true;
-    logEl.innerHTML=buf.replace(/=== 성공 ===/g,'<span class="ok">=== 성공 ===</span>').replace(/=== 오류 ===/g,'<span class="er">=== 오류 ===</span>');
+    logEl.innerHTML=escHtml(buf).replace(/=== 성공 ===/g,'<span class="ok">=== 성공 ===</span>').replace(/=== 오류 ===/g,'<span class="er">=== 오류 ===</span>');
     logEl.scrollTop=logEl.scrollHeight;}
   if(onDone)onDone(ok);return ok;
 }
