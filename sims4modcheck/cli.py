@@ -120,9 +120,11 @@ def _make_progress():
     def progress(path: str, phase: str) -> None:
         state[phase] += 1
         n = state[phase]
-        # Redraw every 25 files, and always before a big file so the name on
-        # screen is the one actually being worked on.
-        if n % 25 and _size(path) < _SLOW_FILE_BYTES:
+        # Mod files are where the real work happens, so always redraw before
+        # one: if the scan stalls, the name on screen is the file responsible.
+        # Everything else redraws in batches to keep the terminal quiet.
+        interesting = os.path.splitext(path)[1].lower() in scanner.MOD_EXTS
+        if not interesting and n % 25 and _size(path) < _SLOW_FILE_BYTES:
             return
         name = os.path.basename(path)[:60]
         label = (
