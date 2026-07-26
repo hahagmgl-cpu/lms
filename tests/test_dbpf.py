@@ -85,3 +85,22 @@ def test_read_index_false_skips_index(tmp_path):
 
 def test_resource_key_str():
     assert str(factories.key(0xAB, 0xCD, 0xEF)) == "000000AB:000000CD:00000000000000EF"
+
+
+def test_packed_keys_round_trip():
+    k = factories.key(0x0333406C, 0xDEADBEEF, 0x1122334455667788)
+    assert dbpf.unpack_key(k.packed) == k
+
+
+def test_read_package_packed(tmp_path):
+    keys = [factories.key(instance=1), factories.key(instance=2)]
+    path = write(tmp_path, "a.package", factories.make_package(keys))
+    packed = dbpf.read_package(path, packed=True).keys
+    assert packed == [k.packed for k in keys]
+    assert [dbpf.unpack_key(p) for p in packed] == keys
+
+
+def test_resource_key_has_no_instance_dict():
+    # The scan holds millions of these; a __dict__ per key is not affordable.
+    with pytest.raises(AttributeError):
+        factories.key().__dict__

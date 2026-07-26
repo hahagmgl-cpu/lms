@@ -45,6 +45,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="How many conflicting mod groups to report (default: 50).",
     )
     parser.add_argument(
+        "--max-tracked-resources",
+        type=int,
+        default=scanner.DEFAULT_MAX_TRACKED_RESOURCES,
+        metavar="N",
+        help="Memory ceiling for conflict detection, in resources "
+        f"(default: {scanner.DEFAULT_MAX_TRACKED_RESOURCES:,}, about 275 MB).",
+    )
+    parser.add_argument(
         "--quarantine",
         metavar="DIR",
         help="Move every file found BROKEN into DIR, preserving the folder "
@@ -75,6 +83,7 @@ def main(argv: list[str] | None = None) -> int:
             check_conflicts=not args.no_conflicts,
             check_duplicates=not args.no_duplicates,
             max_conflicts=args.max_conflicts,
+            max_tracked_resources=args.max_tracked_resources,
             progress=progress,
         )
     except KeyboardInterrupt:

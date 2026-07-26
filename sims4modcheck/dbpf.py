@@ -39,6 +39,10 @@ class DBPFError(Exception):
 class ResourceKey:
     """A TGI key: the address of one resource inside a package."""
 
+    # Scanning a whole Mods folder can mean millions of these, so skip the
+    # per-instance __dict__.
+    __slots__ = ("type", "group", "instance")
+
     type: int
     group: int
     instance: int
@@ -46,24 +50,52 @@ class ResourceKey:
     def __str__(self) -> str:
         return f"{self.type:08X}:{self.group:08X}:{self.instance:016X}"
 
+    @property
+    def packed(self) -> int:
+        return pack_key(self.type, self.group, self.instance)
+
+
+def pack_key(type_id: int, group: int, instance: int) -> int:
+    """Squash a TGI into one integer.
+
+    Comparing keys across a whole Mods folder needs millions of them held in
+    memory at once. A packed int costs roughly a quarter of what a ResourceKey
+    object does, which is the difference between a scan that fits in RAM and
+    one that swaps.
+    """
+    return (type_id << 96) | (group << 64) | instance
+
+
+def unpack_key(packed: int) -> ResourceKey:
+    return ResourceKey(
+        type=packed >> 96,
+        group=(packed >> 64) & 0xFFFFFFFF,
+        instance=packed & 0xFFFFFFFFFFFFFFFF,
+    )
+
 
 @dataclass
 class Package:
     path: str
     major: int
     minor: int
-    keys: list[ResourceKey]
+    # ResourceKey objects, or packed ints when read with packed=True.
+    keys: list
 
     @property
     def is_ts4(self) -> bool:
         return (self.major, self.minor) == TS4_VERSION
 
 
-def read_package(path: str, *, read_index: bool = True) -> Package:
+def read_package(
+    path: str, *, read_index: bool = True, packed: bool = False
+) -> Package:
     """Parse `path` as a DBPF package.
 
     Raises DBPFError with a human-readable reason if the file cannot be read as
-    one. With read_index=False only the header is validated.
+    one. With read_index=False only the header is validated. With packed=True
+    resource keys come back as ints rather than ResourceKey objects, which
+    matters when holding millions of them.
     """
     with open(path, "rb") as fh:
         header = fh.read(HEADER_SIZE)
@@ -85,16 +117,16 @@ def read_package(path: str, *, read_index: bool = True) -> Package:
         index_size = _u32(header, _OFF_INDEX_SIZE)
         index_offset = _u32(header, _OFF_INDEX_OFFSET)
 
-        keys: list[ResourceKey] = []
+        keys: list = []
         if read_index and count:
-            keys = _read_index(fh, path, count, index_offset, index_size)
+            keys = _read_index(fh, path, count, index_offset, index_size, packed)
 
     return Package(path=path, major=major, minor=minor, keys=keys)
 
 
 def _read_index(
-    fh, path: str, count: int, offset: int, size: int
-) -> list[ResourceKey]:
+    fh, path: str, count: int, offset: int, size: int, packed: bool = False
+) -> list:
     file_size = _file_size(fh)
     if offset == 0 or offset >= file_size:
         raise DBPFError(
@@ -133,7 +165,7 @@ def _read_index(
             f"resource index is truncated: need {needed} bytes, have {len(blob)}"
         )
 
-    keys: list[ResourceKey] = []
+    keys: list = []
     for _ in range(count):
         fields: list[int] = []
         for bit in range(4):
@@ -145,8 +177,11 @@ def _read_index(
         # Skip position, filesize, memsize, compression type and commit flag.
         pos += 16
         type_id, group, inst_hi, inst_lo = fields
+        instance = (inst_hi << 32) | inst_lo
         keys.append(
-            ResourceKey(type=type_id, group=group, instance=(inst_hi << 32) | inst_lo)
+            pack_key(type_id, group, instance)
+            if packed
+            else ResourceKey(type=type_id, group=group, instance=instance)
         )
     return keys
 

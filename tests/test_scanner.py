@@ -217,3 +217,57 @@ def test_identical_copies_are_reported_once_as_duplicates(mods):
     (mods / "b.package").write_bytes(data)
     result = scanner.scan(str(mods))
     assert codes(result) == {"duplicate"}
+
+
+def test_conflict_tracking_respects_its_memory_ceiling(mods):
+    (mods / "a.package").write_bytes(
+        factories.make_package([factories.key(instance=n) for n in range(5)])
+    )
+    (mods / "b.package").write_bytes(
+        factories.make_package([factories.key(instance=n) for n in range(5)])
+    )
+    result = scanner.scan(str(mods), max_tracked_resources=2)
+    assert "conflicts-incomplete" in codes(result)
+
+
+def test_untracked_resources_are_reported_as_dropped(mods):
+    (mods / "a.package").write_bytes(
+        factories.make_package([factories.key(instance=n) for n in range(10)])
+    )
+    result = scanner.scan(str(mods), max_tracked_resources=4)
+    note = [i for i in result.issues if i.code == "conflicts-incomplete"][0]
+    assert "6 " in note.message
+
+
+def test_conflicts_within_the_budget_are_still_found(mods):
+    shared = [factories.key(instance=1)]
+    (mods / "a.package").write_bytes(factories.make_package(shared))
+    (mods / "b.package").write_bytes(
+        factories.make_package(shared + [factories.key(instance=2)])
+    )
+    result = scanner.scan(str(mods), max_tracked_resources=1)
+    # The shared key was tracked before the budget ran out, so the conflict
+    # is still reported even though a later resource was dropped.
+    assert [i for i in result.issues if i.code == "conflict"]
+
+
+def test_no_ceiling_note_when_budget_is_sufficient(mods):
+    (mods / "a.package").write_bytes(factories.make_package([factories.key()]))
+    assert "conflicts-incomplete" not in codes(scanner.scan(str(mods)))
+
+
+def test_tracked_key_memory_stays_bounded():
+    # Conflict tracking is the only part of the scan whose memory grows with
+    # the size of the Mods folder. If a key ever costs much more than this,
+    # a large folder will swap and look like a hang.
+    import tracemalloc
+
+    from sims4modcheck.dbpf import pack_key
+
+    n = 50_000
+    tracemalloc.start()
+    tracked = {pack_key(0x0333406C, i % 500, i): "path" for i in range(n)}
+    used, _ = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert len(tracked) == n
+    assert used / n < 120, f"{used / n:.0f} bytes per tracked resource key"

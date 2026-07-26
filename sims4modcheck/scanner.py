@@ -19,6 +19,12 @@ _SEVERITY_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
 SCANNING = "scanning"
 HASHING = "hashing"
 
+# Conflict detection has to remember every resource key it has seen. Measured
+# at ~92 bytes per tracked key (packed int plus its dict slot), so this ceiling
+# caps the map at roughly 275 MB. Past that we stop tracking and say so, rather
+# than swapping the user's machine to a standstill and looking like a hang.
+DEFAULT_MAX_TRACKED_RESOURCES = 3_000_000
+
 # The game only walks so far down into Mods. Anything deeper is never loaded,
 # no matter how healthy the file itself is.
 MAX_PACKAGE_DEPTH = 5
@@ -91,6 +97,7 @@ def scan(
     check_conflicts: bool = True,
     check_duplicates: bool = True,
     max_conflicts: int = 50,
+    max_tracked_resources: int = DEFAULT_MAX_TRACKED_RESOURCES,
     progress=None,
 ) -> ScanResult:
     """Scan a Mods folder.
@@ -105,11 +112,13 @@ def scan(
         raise NotADirectoryError(root)
 
     result = ScanResult(root=root)
-    # resource key -> package that first provided it, then only collisions are
-    # kept in full. Keeps memory sane on folders with millions of resources.
-    first_owner: dict[dbpf.ResourceKey, str] = {}
-    collisions: dict[dbpf.ResourceKey, list[str]] = defaultdict(list)
+    # Packed resource key -> package that first provided it. Only actual
+    # collisions get promoted to a full list, so memory stays at one entry per
+    # resource rather than one per (resource, package) pair.
+    first_owner: dict[int, str] = {}
+    collisions: dict[int, list[str]] = defaultdict(list)
     by_size: dict[int, list[str]] = defaultdict(list)
+    budget = {"remaining": max_tracked_resources, "dropped": 0}
 
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames.sort()
@@ -124,6 +133,7 @@ def scan(
                 first_owner,
                 collisions,
                 by_size,
+                budget,
                 check_conflicts=check_conflicts,
                 check_duplicates=check_duplicates,
             )
@@ -133,11 +143,34 @@ def scan(
         duplicate_groups = _report_duplicates(by_size, result, progress)
     if check_conflicts:
         _report_conflicts(collisions, result, max_conflicts, duplicate_groups)
+        if budget["dropped"]:
+            result.issues.append(
+                Issue(
+                    INFO,
+                    "conflicts-incomplete",
+                    root,
+                    f"Stopped tracking conflicts after {max_tracked_resources:,} "
+                    f"resources to stay within memory, so {budget['dropped']:,} "
+                    "later resources were not compared. Everything else in this "
+                    "report is unaffected.",
+                    fix="Run with --no-conflicts for a quick check, or raise "
+                    "--max-tracked-resources if you have RAM to spare.",
+                )
+            )
     return result
 
 
 def _check_file(
-    path, root, result, first_owner, collisions, by_size, *, check_conflicts, check_duplicates
+    path,
+    root,
+    result,
+    first_owner,
+    collisions,
+    by_size,
+    budget,
+    *,
+    check_conflicts,
+    check_duplicates,
 ):
     name = os.path.basename(path)
     ext = os.path.splitext(name)[1].lower()
@@ -171,7 +204,9 @@ def _check_file(
         result.package_count += 1
         if check_duplicates:
             by_size[size].append(path)
-        _check_package(path, depth, result, first_owner, collisions, check_conflicts)
+        _check_package(
+            path, depth, result, first_owner, collisions, budget, check_conflicts
+        )
     elif ext == ".ts4script":
         result.script_count += 1
         if check_duplicates:
@@ -182,9 +217,9 @@ def _check_file(
         _check_other(path, name, ext, result)
 
 
-def _check_package(path, depth, result, first_owner, collisions, check_conflicts):
+def _check_package(path, depth, result, first_owner, collisions, budget, check_conflicts):
     try:
-        package = dbpf.read_package(path, read_index=check_conflicts)
+        package = dbpf.read_package(path, read_index=check_conflicts, packed=True)
     except dbpf.DBPFError as exc:
         result.issues.append(
             Issue(
@@ -233,6 +268,12 @@ def _check_package(path, depth, result, first_owner, collisions, check_conflicts
         for key in package.keys:
             owner = first_owner.get(key)
             if owner is None:
+                # Known keys still register collisions once the budget is
+                # spent; only brand new ones are dropped.
+                if budget["remaining"] <= 0:
+                    budget["dropped"] += 1
+                    continue
+                budget["remaining"] -= 1
                 first_owner[key] = path
             elif owner != path:
                 bucket = collisions[key]

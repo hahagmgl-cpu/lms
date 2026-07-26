@@ -79,6 +79,7 @@ Exit code is `1` if anything is broken, `0` if not, `2` if the folder does not e
 | `--no-conflicts` | Skip conflict detection — much faster on very large folders. |
 | `--no-duplicates` | Skip duplicate detection. |
 | `--max-conflicts N` | How many conflicting groups to report (default 50). |
+| `--max-tracked-resources N` | Memory ceiling for conflict detection (default 3,000,000, about 275 MB). |
 | `--quiet` | No progress output. |
 
 Sorting out a broken save usually looks like:
@@ -101,6 +102,13 @@ so you can start the game and put anything back if you change your mind.
   download page knows.
 - Package contents are never decompressed, so scanning a large Mods folder is
   quick.
+- Conflict detection is the only part of the scan whose memory grows with your
+  folder size — it remembers every resource key it has seen, at about 92 bytes
+  each. It stops tracking at 3 million resources and says so in the report
+  rather than exhausting RAM. `--no-conflicts` skips it entirely.
+- The scan has two phases: walking the files, then hashing same-sized files to
+  find duplicates. Both report progress, so a still counter means real work,
+  not a hang.
 
 ## Development
 
