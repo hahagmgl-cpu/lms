@@ -116,3 +116,21 @@ def test_quarantine_leaves_merely_misplaced_mods_alone(mods, tmp_path):
     factories.write_script(deep / "healthy.ts4script")
     cli.main([str(mods), "--quiet", "--yes", "--quarantine", str(tmp_path / "q")])
     assert (deep / "healthy.ts4script").exists()
+
+
+def test_quick_skips_the_slow_passes(mods, capsys):
+    # Two identical packages: normally a duplicate, and their shared keys
+    # would be compared for conflicts. --quick does neither.
+    data = factories.make_package([factories.key()])
+    (mods / "a.package").write_bytes(data)
+    (mods / "b.package").write_bytes(data)
+    cli.main([str(mods), "--quiet", "--quick"])
+    out = capsys.readouterr().out
+    assert "duplicate" not in out.lower() and "conflict" not in out.lower()
+    assert "Nothing broken found." in out
+
+
+def test_quick_still_finds_broken_mods(mods, capsys):
+    (mods / "dead.package").write_bytes(b"")
+    assert cli.main([str(mods), "--quiet", "--quick"]) == 1
+    assert "dead.package" in capsys.readouterr().out

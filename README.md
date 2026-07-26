@@ -12,6 +12,13 @@ explicitly ask it to.
 python3 -m sims4modcheck "~/Documents/Electronic Arts/The Sims 4/Mods"
 ```
 
+Just want to know what's broken, nothing else? That's the fast path — it reads
+only the header of each mod, so it finishes quickly even on a huge folder:
+
+```bash
+python3 -m sims4modcheck "~/Documents/Electronic Arts/The Sims 4/Mods" --quick
+```
+
 On Windows:
 
 ```

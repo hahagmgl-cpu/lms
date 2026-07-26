@@ -33,6 +33,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--html", metavar="FILE", help="Write an HTML report you can open in a browser."
     )
     parser.add_argument(
+        "--quick",
+        action="store_true",
+        help="Just check whether each mod is broken. Skips conflict and "
+        "duplicate detection, which are the slow parts.",
+    )
+    parser.add_argument(
         "--no-conflicts",
         action="store_true",
         help="Skip resource conflict detection (much faster on large folders).",
@@ -91,8 +97,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         result = scanner.scan(
             root,
-            check_conflicts=not args.no_conflicts,
-            check_duplicates=not args.no_duplicates,
+            check_conflicts=not (args.no_conflicts or args.quick),
+            check_duplicates=not (args.no_duplicates or args.quick),
             max_conflicts=args.max_conflicts,
             max_tracked_resources=args.max_tracked_resources,
             file_timeout=args.timeout,
