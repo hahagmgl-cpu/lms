@@ -81,7 +81,8 @@ Exit code is `1` if anything is broken, `0` if not, `2` if the folder does not e
 | `--all` | Also show informational notes (readmes, unknown file types). |
 | `--html FILE` | Write a browsable HTML report. |
 | `--json FILE` | Write full results as JSON (`-` for stdout). |
-| `--quarantine DIR` | Move every BROKEN file into `DIR`, keeping the folder layout. Asks first; nothing is ever deleted. |
+| `--remove` | Take the broken mods out of Mods. They go to a `Broken Mods` folder alongside it — moved, never deleted. Asks first. |
+| `--quarantine DIR` | Same as `--remove`, but you choose the destination. |
 | `--yes` | Skip the quarantine confirmation. |
 | `--no-conflicts` | Skip conflict detection — much faster on very large folders. |
 | `--no-duplicates` | Skip duplicate detection. |
@@ -90,15 +91,18 @@ Exit code is `1` if anything is broken, `0` if not, `2` if the folder does not e
 | `--timeout SECONDS` | Give up on any single file after this long and carry on (default 60; 0 waits forever). |
 | `--quiet` | No progress output. |
 
-Sorting out a broken save usually looks like:
+Don't want a report, just want the broken mods gone:
 
 ```bash
-python3 -m sims4modcheck ~/path/to/Mods --html report.html
-python3 -m sims4modcheck ~/path/to/Mods --quarantine ~/Desktop/broken-mods
+python3 -m sims4modcheck ~/path/to/Mods --quick --remove
 ```
 
-Quarantine moves the broken files out of Mods into a folder of your choosing,
-so you can start the game and put anything back if you change your mind.
+It lists what it found, asks once, then moves those files into a `Broken Mods`
+folder next to your Mods folder. The game stops loading them immediately, and
+nothing is deleted — drag anything back if you disagree with a call.
+
+Mods that are merely in the wrong place are never moved; those need relocating
+within Mods, not removing.
 
 ## Notes and limits
 

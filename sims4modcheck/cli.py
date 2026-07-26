@@ -69,13 +69,19 @@ def build_parser() -> argparse.ArgumentParser:
         f"(default: {scanner.DEFAULT_FILE_TIMEOUT:.0f}). 0 waits forever.",
     )
     parser.add_argument(
-        "--quarantine",
-        metavar="DIR",
-        help="Move every file found BROKEN into DIR, preserving the folder "
-        "layout. Nothing is deleted, and you are asked to confirm first.",
+        "--remove",
+        action="store_true",
+        help=f"Take the broken mods out of your Mods folder. They are moved "
+        f"into a '{QUARANTINE_DIRNAME}' folder next to Mods, not deleted, so "
+        "you can put any of them back. You are asked to confirm first.",
     )
     parser.add_argument(
-        "--yes", action="store_true", help="Skip the --quarantine confirmation prompt."
+        "--quarantine",
+        metavar="DIR",
+        help="Like --remove, but you choose where the broken mods go.",
+    )
+    parser.add_argument(
+        "--yes", action="store_true", help="Skip the confirmation prompt."
     )
     parser.add_argument("--quiet", action="store_true", help="Hide scan progress.")
     parser.add_argument(
@@ -123,8 +129,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.html != "-":
             print(f"\nHTML report written to {args.html}")
 
-    if args.quarantine:
-        _quarantine(result, args.quarantine, assume_yes=args.yes)
+    dest = args.quarantine
+    if args.remove and not dest:
+        # A sibling of Mods: outside what the game loads, and on the same disk
+        # so the move is instant rather than a copy.
+        dest = os.path.join(os.path.dirname(root), QUARANTINE_DIRNAME)
+    if dest:
+        _quarantine(result, dest, assume_yes=args.yes)
 
     return 1 if result.errors else 0
 
@@ -133,6 +144,10 @@ def main(argv: list[str] | None = None) -> int:
 # if we waited for the next batch to redraw.
 _SLOW_FILE_BYTES = 20 * 1024 * 1024
 
+
+# Where --remove puts broken mods: a sibling of Mods, so the game stops loading
+# them but the user can still get them back.
+QUARANTINE_DIRNAME = "Broken Mods"
 
 # How long a single file may sit there before we say so out loud.
 _NAG_AFTER_SECONDS = 5.0
@@ -233,11 +248,16 @@ def _quarantine(result, dest: str, *, assume_yes: bool) -> None:
         }
     )
     if not broken:
-        print("\nNothing to quarantine.")
+        print("\nNo broken mods to remove.")
         return
 
     dest = os.path.abspath(os.path.expanduser(dest))
-    print(f"\nAbout to move {len(broken)} broken file(s) into {dest}")
+    print(f"\nAbout to take {len(broken)} broken mod(s) out of your Mods folder.")
+    for path in broken[:10]:
+        print(f"  {os.path.relpath(path, result.root)}")
+    if len(broken) > 10:
+        print(f"  ...and {len(broken) - 10} more")
+    print(f"They will be moved to {dest} -- nothing is deleted.")
     if not assume_yes:
         try:
             answer = input("Continue? [y/N] ").strip().lower()
@@ -257,7 +277,7 @@ def _quarantine(result, dest: str, *, assume_yes: bool) -> None:
             moved += 1
         except OSError as exc:
             print(f"  could not move {path}: {exc}", file=sys.stderr)
-    print(f"Moved {moved} file(s).")
+    print(f"Removed {moved} broken mod(s). They are in {dest} if you want them back.")
 
 
 def _unique(path: str) -> str:

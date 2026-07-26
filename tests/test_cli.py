@@ -134,3 +134,52 @@ def test_quick_still_finds_broken_mods(mods, capsys):
     (mods / "dead.package").write_bytes(b"")
     assert cli.main([str(mods), "--quiet", "--quick"]) == 1
     assert "dead.package" in capsys.readouterr().out
+
+
+def test_remove_moves_broken_mods_next_to_the_mods_folder(mods, capsys):
+    (mods / "dead.package").write_bytes(b"")
+    (mods / "ok.package").write_bytes(factories.make_package())
+    cli.main([str(mods), "--quiet", "--yes", "--remove"])
+    dest = mods.parent / cli.QUARANTINE_DIRNAME
+    assert (dest / "dead.package").exists()
+    assert not (mods / "dead.package").exists()
+    assert (mods / "ok.package").exists()
+
+
+def test_remove_destination_is_outside_the_mods_folder(mods):
+    # Otherwise the game would just keep loading the broken files.
+    (mods / "dead.package").write_bytes(b"")
+    cli.main([str(mods), "--quiet", "--yes", "--remove"])
+    dest = mods.parent / cli.QUARANTINE_DIRNAME
+    assert not str(dest.resolve()).startswith(str(mods.resolve()) + os.sep)
+
+
+def test_remove_asks_before_touching_anything(mods, monkeypatch, capsys):
+    (mods / "dead.package").write_bytes(b"")
+    monkeypatch.setattr("builtins.input", lambda *_: "n")
+    cli.main([str(mods), "--quiet", "--remove"])
+    assert (mods / "dead.package").exists()
+    assert "Skipped." in capsys.readouterr().out
+
+
+def test_remove_lists_what_it_will_take_out(mods, monkeypatch, capsys):
+    for n in range(3):
+        (mods / f"dead{n}.package").write_bytes(b"")
+    monkeypatch.setattr("builtins.input", lambda *_: "n")
+    cli.main([str(mods), "--quiet", "--remove"])
+    out = capsys.readouterr().out
+    assert "dead0.package" in out and "dead2.package" in out
+    assert "nothing is deleted" in out
+
+
+def test_remove_with_nothing_broken_says_so(mods, capsys):
+    (mods / "ok.package").write_bytes(factories.make_package())
+    cli.main([str(mods), "--quiet", "--yes", "--remove"])
+    assert "No broken mods to remove." in capsys.readouterr().out
+    assert not (mods.parent / cli.QUARANTINE_DIRNAME).exists()
+
+
+def test_remove_works_with_quick(mods):
+    (mods / "dead.package").write_bytes(b"")
+    cli.main([str(mods), "--quiet", "--yes", "--quick", "--remove"])
+    assert (mods.parent / cli.QUARANTINE_DIRNAME / "dead.package").exists()
