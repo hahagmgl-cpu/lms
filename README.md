@@ -78,6 +78,7 @@ Exit code is `1` if anything is broken, `0` if not, `2` if the folder does not e
 
 | Option | What it does |
 | --- | --- |
+| `--find-culprit` | Track down the one mod causing a problem the file checks can't see (black main menu, CAS not opening). Halves your mods, you launch and answer, it narrows down. Everything is put back. |
 | `--all` | Also show informational notes (readmes, unknown file types). |
 | `--html FILE` | Write a browsable HTML report. |
 | `--json FILE` | Write full results as JSON (`-` for stdout). |
@@ -129,6 +130,26 @@ Two kinds of warning are deliberately never acted on, even with
 Add `--delete` to any of the above to delete permanently instead of moving.
 Without it everything is recoverable, so try it without first.
 
+## When the files are all fine but the game misbehaves
+
+A black main menu, CAS refusing to open, saves failing — these usually come
+from a mod that is structurally perfect. It loads correctly and then does
+something the current patch no longer supports. Nothing in the file marks it,
+so no amount of file checking will find it.
+
+The way to find it is to halve the folder, launch, and see which half the
+problem follows. That's about 7 launches for 100 mods instead of 100, and the
+tool does the moving for you:
+
+```bash
+python3 -m sims4modcheck ~/path/to/Mods --find-culprit
+```
+
+Each round it moves half your mods aside and asks whether the problem is still
+there after you launch. Quit the game fully between rounds or it won't pick up
+the change. Every mod is put back at the end — including if you quit part way
+through or the tool crashes.
+
 ## Notes and limits
 
 - Conflict detection compares resource keys. Two mods overriding the same
@@ -136,7 +157,8 @@ Without it everything is recoverable, so try it without first.
   package) — it's a "check this if something looks wrong", not an error.
 - The tool cannot tell whether a mod is out of date for the current game patch.
   Nothing in the file records which patch it was built for; only the creator's
-  download page knows.
+  download page knows. This is what `--find-culprit` is for: when the file is
+  fine but the behaviour isn't, only the game can tell you, so the tool asks it.
 - Package contents are never decompressed, so scanning a large Mods folder is
   quick.
 - Conflict detection is the only part of the scan whose memory grows with your

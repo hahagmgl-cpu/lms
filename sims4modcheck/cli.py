@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import math
 import os
 import shutil
 import sys
 import threading
 import time
 
+from . import bisect as bisect_mod
 from . import report, scanner
+
+BISECT_DIRNAME = "Mods (set aside)"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -69,6 +73,15 @@ def build_parser() -> argparse.ArgumentParser:
         f"(default: {scanner.DEFAULT_FILE_TIMEOUT:.0f}). 0 waits forever.",
     )
     parser.add_argument(
+        "--find-culprit",
+        action="store_true",
+        help="Track down the single mod causing a problem the file checks "
+        "cannot see -- a black main menu, CAS not opening, saves failing. "
+        "Moves half your mods aside, you launch the game and say whether the "
+        "problem is still there, and it narrows down from there. Every mod is "
+        "put back afterwards.",
+    )
+    parser.add_argument(
         "--fix-warnings",
         action="store_true",
         help="Also act on warnings, not just broken mods: delete extra copies "
@@ -112,6 +125,9 @@ def main(argv: list[str] | None = None) -> int:
     if not os.path.isdir(root):
         print(f"Not a folder: {root}", file=sys.stderr)
         return 2
+
+    if args.find_culprit:
+        return _find_culprit(root)
 
     watchdog = None if args.quiet else _Watchdog().start()
     progress = None if args.quiet else _make_progress(watchdog)
@@ -245,6 +261,59 @@ def _size(path: str) -> int:
         return os.path.getsize(path)
     except OSError:
         return 0
+
+
+def _find_culprit(root: str) -> int:
+    holding = os.path.join(os.path.dirname(root), BISECT_DIRNAME)
+    total = len(bisect_mod.collect_mods(root))
+    if total < 2:
+        print("Need at least two mods installed to narrow anything down.")
+        return 0
+
+    rounds = max(1, math.ceil(math.log2(total)))
+    print(
+        f"{total} mods installed. This takes about {rounds} game launches.\n"
+        f"Mods are moved to '{holding}' while testing and put back at the end -- "
+        "including if you quit part way through.\n"
+        "Quit the game fully between rounds, or it won't pick up the change."
+    )
+
+    def ask(kept: int, of: int) -> str:
+        while True:
+            print(
+                f"\nLaunch the game now, with {kept} of these {of} mods active.",
+            )
+            try:
+                answer = input("Is the problem still there? [y]es / [n]o / [q]uit: ")
+            except EOFError:
+                return bisect_mod.ABORT
+            answer = answer.strip().lower()
+            if answer in {"y", "yes"}:
+                return bisect_mod.STILL_BROKEN
+            if answer in {"n", "no"}:
+                return bisect_mod.FIXED
+            if answer in {"q", "quit"}:
+                return bisect_mod.ABORT
+            print("Please answer y, n or q.")
+
+    try:
+        outcome = bisect_mod.bisect(root, holding, ask)
+    except KeyboardInterrupt:
+        print("\nStopped. All mods have been put back.")
+        return 130
+
+    if outcome.aborted:
+        print("\nStopped. All mods have been put back.")
+        return 0
+    if outcome.culprit:
+        print(
+            f"\nFound it: {os.path.relpath(outcome.culprit, root)}\n"
+            f"That is the mod causing your problem, narrowed down in "
+            f"{outcome.rounds} rounds. Every mod is back in place, so move that "
+            "one out and check for an updated version from its creator."
+        )
+        return 1
+    return 0
 
 
 def _write(target: str, text: str) -> None:
