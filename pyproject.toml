@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sims4modcheck"
+version = "1.0.0"
+description = "Check a Sims 4 Mods folder for broken, misplaced or conflicting mods."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[project.scripts]
+sims4modcheck = "sims4modcheck.cli:main"
+
+[tool.setuptools]
+packages = ["sims4modcheck"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
