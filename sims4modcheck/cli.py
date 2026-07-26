@@ -69,6 +69,21 @@ def build_parser() -> argparse.ArgumentParser:
         f"(default: {scanner.DEFAULT_FILE_TIMEOUT:.0f}). 0 waits forever.",
     )
     parser.add_argument(
+        "--fix-warnings",
+        action="store_true",
+        help="Also act on warnings, not just broken mods: delete extra copies "
+        "of duplicated mods (keeping one), move mods that are buried too deep "
+        "up to where the game can load them, and clear out unfinished "
+        "downloads. Conflicts and unreadable files are left alone -- see the "
+        "README for why.",
+    )
+    parser.add_argument(
+        "--delete",
+        action="store_true",
+        help="Permanently delete instead of moving to a folder. There is no "
+        "undo; without this, everything is recoverable.",
+    )
+    parser.add_argument(
         "--remove",
         action="store_true",
         help=f"Take the broken mods out of your Mods folder. They are moved "
@@ -130,12 +145,18 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\nHTML report written to {args.html}")
 
     dest = args.quarantine
-    if args.remove and not dest:
+    if (args.remove or args.fix_warnings or args.delete) and not dest:
         # A sibling of Mods: outside what the game loads, and on the same disk
         # so the move is instant rather than a copy.
         dest = os.path.join(os.path.dirname(root), QUARANTINE_DIRNAME)
     if dest:
-        _quarantine(result, dest, assume_yes=args.yes)
+        _apply(
+            result,
+            _plan(result, fix_warnings=args.fix_warnings),
+            dest,
+            assume_yes=args.yes,
+            delete=args.delete,
+        )
 
     return 1 if result.errors else 0
 
@@ -234,30 +255,81 @@ def _write(target: str, text: str) -> None:
         fh.write(text)
 
 
-# A misplaced mod is a healthy file in the wrong folder. Pulling it out of Mods
-# is not the fix, so quarantine leaves it alone.
+# A mod buried too deep is a healthy file in the wrong folder. Taking it out of
+# Mods is not the fix -- moving it up is -- so plain removal skips these.
 _MISPLACED = {"too-deep", "script-too-deep"}
 
+# Warnings where the file itself is genuinely unwanted.
+_JUNK_WARNINGS = {"inert-file", "script-mixed-python"}
 
-def _quarantine(result, dest: str, *, assume_yes: bool) -> None:
-    broken = sorted(
-        {
-            issue.path
-            for issue in result.errors
-            if issue.code not in _MISPLACED and os.path.isfile(issue.path)
-        }
-    )
-    if not broken:
-        print("\nNo broken mods to remove.")
+# Warnings we deliberately never act on:
+#   conflict      -- overriding the same resource is usually intentional, and
+#                    picking a loser automatically would delete working mods.
+#   read-timeout  -- the file was never successfully read, so we know nothing
+#                    about it. Acting on ignorance is not a fix.
+_NEVER_ACT = {"conflict", "read-timeout", "conflicts-truncated", "conflicts-incomplete"}
+
+
+def _plan(result, *, fix_warnings: bool):
+    """Work out what to do with each file, as (action, path, reason) rows.
+
+    Action is "remove" (out of Mods) or "relocate" (up to where the game
+    actually loads it).
+    """
+    planned: dict[str, tuple[str, str]] = {}
+
+    def add(action: str, path: str, reason: str) -> None:
+        if os.path.isfile(path) and path not in planned:
+            planned[path] = (action, reason)
+
+    for issue in result.issues:
+        if issue.code in _NEVER_ACT:
+            continue
+        if issue.code in _MISPLACED:
+            if fix_warnings:
+                add("relocate", issue.path, "buried too deep for the game to load")
+            continue
+        if issue.severity == scanner.ERROR:
+            add("remove", issue.path, issue.message.split(".")[0].split(" -- ")[0])
+        elif fix_warnings and issue.code == "duplicate":
+            # issue.path is the copy we keep; the extras go.
+            for extra in issue.related:
+                add("remove", extra, "duplicate copy of a mod you already have")
+        elif fix_warnings and issue.code in _JUNK_WARNINGS:
+            add("remove", issue.path, issue.message.split(".")[0])
+
+    return sorted((action, path, reason) for path, (action, reason) in planned.items())
+
+
+def _apply(result, plan, dest: str, *, assume_yes: bool, delete: bool) -> None:
+    if not plan:
+        print("\nNothing to clean up.")
         return
 
+    removals = [row for row in plan if row[0] == "remove"]
+    moves = [row for row in plan if row[0] == "relocate"]
     dest = os.path.abspath(os.path.expanduser(dest))
-    print(f"\nAbout to take {len(broken)} broken mod(s) out of your Mods folder.")
-    for path in broken[:10]:
-        print(f"  {os.path.relpath(path, result.root)}")
-    if len(broken) > 10:
-        print(f"  ...and {len(broken) - 10} more")
-    print(f"They will be moved to {dest} -- nothing is deleted.")
+
+    print()
+    if removals:
+        verb = "delete" if delete else "take"
+        print(f"About to {verb} {len(removals)} mod(s) out of your Mods folder:")
+        for _, path, reason in removals[:10]:
+            print(f"  {os.path.relpath(path, result.root)} -- {reason}")
+        if len(removals) > 10:
+            print(f"  ...and {len(removals) - 10} more")
+        print(
+            "They will be permanently deleted. This cannot be undone."
+            if delete
+            else f"They will be moved to {dest} -- nothing is deleted."
+        )
+    if moves:
+        print(f"About to move {len(moves)} mod(s) up into {result.root}:")
+        for _, path, reason in moves[:10]:
+            print(f"  {os.path.relpath(path, result.root)} -- {reason}")
+        if len(moves) > 10:
+            print(f"  ...and {len(moves) - 10} more")
+
     if not assume_yes:
         try:
             answer = input("Continue? [y/N] ").strip().lower()
@@ -267,17 +339,32 @@ def _quarantine(result, dest: str, *, assume_yes: bool) -> None:
             print("Skipped.")
             return
 
-    moved = 0
-    for path in broken:
-        target = os.path.join(dest, os.path.relpath(path, result.root))
-        os.makedirs(os.path.dirname(target), exist_ok=True)
-        target = _unique(target)
+    removed = relocated = 0
+    for action, path, _ in plan:
         try:
-            shutil.move(path, target)
-            moved += 1
+            if action == "relocate":
+                target = _unique(os.path.join(result.root, os.path.basename(path)))
+                shutil.move(path, target)
+                relocated += 1
+            elif delete:
+                os.remove(path)
+                removed += 1
+            else:
+                target = _unique(os.path.join(dest, os.path.relpath(path, result.root)))
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                shutil.move(path, target)
+                removed += 1
         except OSError as exc:
-            print(f"  could not move {path}: {exc}", file=sys.stderr)
-    print(f"Removed {moved} broken mod(s). They are in {dest} if you want them back.")
+            print(f"  could not handle {path}: {exc}", file=sys.stderr)
+
+    if removed:
+        print(
+            f"Deleted {removed} mod(s)."
+            if delete
+            else f"Removed {removed} mod(s). They are in {dest} if you want them back."
+        )
+    if relocated:
+        print(f"Moved {relocated} mod(s) up to the top of your Mods folder.")
 
 
 def _unique(path: str) -> str:

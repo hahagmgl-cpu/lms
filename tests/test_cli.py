@@ -175,7 +175,7 @@ def test_remove_lists_what_it_will_take_out(mods, monkeypatch, capsys):
 def test_remove_with_nothing_broken_says_so(mods, capsys):
     (mods / "ok.package").write_bytes(factories.make_package())
     cli.main([str(mods), "--quiet", "--yes", "--remove"])
-    assert "No broken mods to remove." in capsys.readouterr().out
+    assert "Nothing to clean up." in capsys.readouterr().out
     assert not (mods.parent / cli.QUARANTINE_DIRNAME).exists()
 
 
@@ -183,3 +183,76 @@ def test_remove_works_with_quick(mods):
     (mods / "dead.package").write_bytes(b"")
     cli.main([str(mods), "--quiet", "--yes", "--quick", "--remove"])
     assert (mods.parent / cli.QUARANTINE_DIRNAME / "dead.package").exists()
+
+
+def test_fix_warnings_removes_extra_copies_but_keeps_one(mods):
+    data = factories.make_package([factories.key()])
+    (mods / "a.package").write_bytes(data)
+    sub = mods / "backup"
+    sub.mkdir()
+    (sub / "a.package").write_bytes(data)
+    cli.main([str(mods), "--quiet", "--yes", "--fix-warnings"])
+    survivors = list(mods.rglob("a.package"))
+    assert len(survivors) == 1, "exactly one copy of a duplicated mod must survive"
+
+
+def test_fix_warnings_moves_buried_mods_up_instead_of_removing_them(mods):
+    deep = mods / "a" / "b" / "c" / "d" / "e" / "f"
+    deep.mkdir(parents=True)
+    (deep / "buried.package").write_bytes(factories.make_package())
+    cli.main([str(mods), "--quiet", "--yes", "--fix-warnings"])
+    assert (mods / "buried.package").exists()
+    assert not (deep / "buried.package").exists()
+    assert not (mods.parent / cli.QUARANTINE_DIRNAME / "buried.package").exists()
+
+
+def test_fix_warnings_clears_unfinished_downloads(mods):
+    (mods / "cc.package.crdownload").write_bytes(b"partial")
+    cli.main([str(mods), "--quiet", "--yes", "--fix-warnings"])
+    assert not (mods / "cc.package.crdownload").exists()
+
+
+def test_fix_warnings_never_touches_conflicting_mods(mods):
+    # Overriding the same resource is usually deliberate; deleting on that
+    # signal would take out working mods.
+    shared = [factories.key(instance=7)]
+    (mods / "modA.package").write_bytes(factories.make_package(shared))
+    (mods / "modB.package").write_bytes(
+        factories.make_package(shared + [factories.key(instance=9)])
+    )
+    cli.main([str(mods), "--quiet", "--yes", "--fix-warnings"])
+    assert (mods / "modA.package").exists() and (mods / "modB.package").exists()
+
+
+def test_fix_warnings_never_touches_unreadable_files(mods, monkeypatch):
+    import time as _time
+
+    monkeypatch.setattr(scanner.dbpf, "read_package", lambda *a, **k: _time.sleep(30))
+    (mods / "slow.package").write_bytes(factories.make_package())
+    cli.main([str(mods), "--quiet", "--yes", "--fix-warnings", "--timeout", "0.5"])
+    assert (mods / "slow.package").exists()
+
+
+def test_delete_permanently_removes(mods):
+    (mods / "dead.package").write_bytes(b"")
+    cli.main([str(mods), "--quiet", "--yes", "--delete"])
+    assert not (mods / "dead.package").exists()
+    assert not (mods.parent / cli.QUARANTINE_DIRNAME).exists()
+
+
+def test_delete_warns_that_there_is_no_undo(mods, monkeypatch, capsys):
+    (mods / "dead.package").write_bytes(b"")
+    monkeypatch.setattr("builtins.input", lambda *_: "n")
+    cli.main([str(mods), "--quiet", "--delete"])
+    out = capsys.readouterr().out
+    assert "cannot be undone" in out
+    assert (mods / "dead.package").exists()
+
+
+def test_plan_explains_why_each_file_is_going(mods):
+    (mods / "dead.package").write_bytes(b"")
+    result = scanner.scan(str(mods))
+    plan = cli._plan(result, fix_warnings=False)
+    assert len(plan) == 1
+    action, path, reason = plan[0]
+    assert action == "remove" and path.endswith("dead.package") and reason

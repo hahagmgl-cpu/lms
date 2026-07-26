@@ -82,6 +82,8 @@ Exit code is `1` if anything is broken, `0` if not, `2` if the folder does not e
 | `--html FILE` | Write a browsable HTML report. |
 | `--json FILE` | Write full results as JSON (`-` for stdout). |
 | `--remove` | Take the broken mods out of Mods. They go to a `Broken Mods` folder alongside it — moved, never deleted. Asks first. |
+| `--fix-warnings` | Also act on warnings: drop extra copies of duplicated mods (keeping one), move buried mods up to where the game loads them, clear unfinished downloads. |
+| `--delete` | Permanently delete instead of moving. No undo. |
 | `--quarantine DIR` | Same as `--remove`, but you choose the destination. |
 | `--yes` | Skip the quarantine confirmation. |
 | `--no-conflicts` | Skip conflict detection — much faster on very large folders. |
@@ -101,8 +103,31 @@ It lists what it found, asks once, then moves those files into a `Broken Mods`
 folder next to your Mods folder. The game stops loading them immediately, and
 nothing is deleted — drag anything back if you disagree with a call.
 
-Mods that are merely in the wrong place are never moved; those need relocating
-within Mods, not removing.
+Mods that are merely in the wrong place are never removed. With
+`--fix-warnings` they get moved up to the top of Mods instead, which is the
+actual fix.
+
+To clean up warnings as well as outright breakage:
+
+```bash
+python3 -m sims4modcheck ~/path/to/Mods --fix-warnings
+```
+
+That drops extra copies of duplicated mods (keeping one), moves buried mods up
+where the game can load them, and clears out unfinished downloads.
+
+Two kinds of warning are deliberately never acted on, even with
+`--fix-warnings`:
+
+- **Conflicts.** Two mods overriding the same resource is usually intentional —
+  default replacements and merged packages look exactly like this. Automatically
+  picking a loser would delete mods that work fine. Which one to drop is a
+  judgement call only you can make.
+- **Unreadable files.** If a file timed out, the tool never read it and knows
+  nothing about it. Deleting on no evidence isn't a fix.
+
+Add `--delete` to any of the above to delete permanently instead of moving.
+Without it everything is recoverable, so try it without first.
 
 ## Notes and limits
 
