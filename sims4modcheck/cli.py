@@ -6,6 +6,8 @@ import argparse
 import os
 import shutil
 import sys
+import threading
+import time
 
 from . import report, scanner
 
@@ -53,6 +55,14 @@ def build_parser() -> argparse.ArgumentParser:
         f"(default: {scanner.DEFAULT_MAX_TRACKED_RESOURCES:,}, about 275 MB).",
     )
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=scanner.DEFAULT_FILE_TIMEOUT,
+        metavar="SECONDS",
+        help="Give up on any single file after this long and carry on "
+        f"(default: {scanner.DEFAULT_FILE_TIMEOUT:.0f}). 0 waits forever.",
+    )
+    parser.add_argument(
         "--quarantine",
         metavar="DIR",
         help="Move every file found BROKEN into DIR, preserving the folder "
@@ -76,7 +86,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Not a folder: {root}", file=sys.stderr)
         return 2
 
-    progress = None if args.quiet else _make_progress()
+    watchdog = None if args.quiet else _Watchdog().start()
+    progress = None if args.quiet else _make_progress(watchdog)
     try:
         result = scanner.scan(
             root,
@@ -84,12 +95,15 @@ def main(argv: list[str] | None = None) -> int:
             check_duplicates=not args.no_duplicates,
             max_conflicts=args.max_conflicts,
             max_tracked_resources=args.max_tracked_resources,
+            file_timeout=args.timeout,
             progress=progress,
         )
     except KeyboardInterrupt:
         print("\nCancelled.", file=sys.stderr)
         return 130
     finally:
+        if watchdog:
+            watchdog.stop()
         if progress:
             print("\r\033[K", end="", file=sys.stderr)
 
@@ -114,12 +128,59 @@ def main(argv: list[str] | None = None) -> int:
 _SLOW_FILE_BYTES = 20 * 1024 * 1024
 
 
-def _make_progress():
+# How long a single file may sit there before we say so out loud.
+_NAG_AFTER_SECONDS = 5.0
+
+
+class _Watchdog:
+    """Reports when one file is taking a suspiciously long time.
+
+    Without this a stalled read is indistinguishable from a crash: the counter
+    stops and nothing explains why.
+    """
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._path = None
+        self._since = time.monotonic()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._watch, daemon=True)
+
+    def start(self):
+        self._thread.start()
+        return self
+
+    def stop(self):
+        self._stop.set()
+
+    def note(self, path: str) -> None:
+        with self._lock:
+            self._path = path
+            self._since = time.monotonic()
+
+    def _watch(self) -> None:
+        while not self._stop.wait(1.0):
+            with self._lock:
+                path, since = self._path, self._since
+            waited = time.monotonic() - since
+            if path and waited >= _NAG_AFTER_SECONDS:
+                print(
+                    f"\r\033[Kstill reading {os.path.basename(path)[:50]} "
+                    f"({waited:.0f}s) -- waiting on the disk, not stuck",
+                    end="",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+
+def _make_progress(watchdog=None):
     state = {"scanning": 0, "hashing": 0}
 
     def progress(path: str, phase: str) -> None:
         state[phase] += 1
         n = state[phase]
+        if watchdog:
+            watchdog.note(path)
         # Mod files are where the real work happens, so always redraw before
         # one: if the scan stalls, the name on screen is the file responsible.
         # Everything else redraws in batches to keep the terminal quiet.

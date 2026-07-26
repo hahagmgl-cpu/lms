@@ -80,6 +80,7 @@ Exit code is `1` if anything is broken, `0` if not, `2` if the folder does not e
 | `--no-duplicates` | Skip duplicate detection. |
 | `--max-conflicts N` | How many conflicting groups to report (default 50). |
 | `--max-tracked-resources N` | Memory ceiling for conflict detection (default 3,000,000, about 275 MB). |
+| `--timeout SECONDS` | Give up on any single file after this long and carry on (default 60; 0 waits forever). |
 | `--quiet` | No progress output. |
 
 Sorting out a broken save usually looks like:
@@ -109,6 +110,11 @@ so you can start the game and put anything back if you change your mind.
 - The scan has two phases: walking the files, then hashing same-sized files to
   find duplicates. Both report progress, so a still counter means real work,
   not a hang.
+- If one file takes more than 5 seconds the tool says so on screen, and after
+  `--timeout` seconds it abandons that file and carries on, listing it in the
+  report. A healthy local file reads instantly, so a slow one usually means the
+  file is still in iCloud rather than on disk, lives on a drive that has gone to
+  sleep, or is damaged.
 
 ## Development
 

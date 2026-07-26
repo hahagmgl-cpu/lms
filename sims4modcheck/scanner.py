@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import os
+import signal
+import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -52,6 +55,44 @@ CLUTTER_EXTS = {
 
 MOD_EXTS = {".package", ".ts4script"}
 
+# No healthy local file takes anywhere near this long to read. A file that does
+# is on a stalled network or cloud mount, an external drive that went to sleep,
+# or a failing disk -- none of which should be allowed to wedge the whole scan.
+DEFAULT_FILE_TIMEOUT = 60.0
+
+
+class FileTimeout(Exception):
+    """A single file took too long to read and was given up on."""
+
+
+@contextlib.contextmanager
+def _time_limit(seconds: float):
+    """Abort the enclosed block if it runs longer than `seconds`.
+
+    Uses SIGALRM, which is what makes this work on a read blocked in the
+    kernel -- a plain thread-based timer cannot interrupt one. Silently does
+    nothing where that is unavailable (Windows, or off the main thread).
+    """
+    usable = (
+        seconds
+        and hasattr(signal, "SIGALRM")
+        and threading.current_thread() is threading.main_thread()
+    )
+    if not usable:
+        yield
+        return
+
+    def on_alarm(signum, frame):
+        raise FileTimeout()
+
+    previous = signal.signal(signal.SIGALRM, on_alarm)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+
 
 @dataclass
 class Issue:
@@ -98,6 +139,7 @@ def scan(
     check_duplicates: bool = True,
     max_conflicts: int = 50,
     max_tracked_resources: int = DEFAULT_MAX_TRACKED_RESOURCES,
+    file_timeout: float = DEFAULT_FILE_TIMEOUT,
     progress=None,
 ) -> ScanResult:
     """Scan a Mods folder.
@@ -126,21 +168,25 @@ def scan(
             path = os.path.join(dirpath, name)
             if progress:
                 progress(path, SCANNING)
-            _check_file(
-                path,
-                root,
-                result,
-                first_owner,
-                collisions,
-                by_size,
-                budget,
-                check_conflicts=check_conflicts,
-                check_duplicates=check_duplicates,
-            )
+            try:
+                with _time_limit(file_timeout):
+                    _check_file(
+                        path,
+                        root,
+                        result,
+                        first_owner,
+                        collisions,
+                        by_size,
+                        budget,
+                        check_conflicts=check_conflicts,
+                        check_duplicates=check_duplicates,
+                    )
+            except FileTimeout:
+                result.issues.append(_timeout_issue(path, file_timeout))
 
     duplicate_groups: list[frozenset[str]] = []
     if check_duplicates:
-        duplicate_groups = _report_duplicates(by_size, result, progress)
+        duplicate_groups = _report_duplicates(by_size, result, progress, file_timeout)
     if check_conflicts:
         _report_conflicts(collisions, result, max_conflicts, duplicate_groups)
         if budget["dropped"]:
@@ -410,7 +456,22 @@ def _check_other(path, name, ext, result):
         )
 
 
-def _report_duplicates(by_size, result, progress=None) -> list[frozenset[str]]:
+def _timeout_issue(path: str, seconds: float) -> Issue:
+    return Issue(
+        WARNING,
+        "read-timeout",
+        path,
+        f"Gave up after {seconds:.0f}s -- the file could not be read, so it was "
+        "not checked. The scan carried on without it.",
+        fix="A local file reads instantly. This one is most likely still in "
+        "iCloud rather than on the disk (check for a cloud icon in Finder), on "
+        "a drive that has gone to sleep, or damaged.",
+    )
+
+
+def _report_duplicates(
+    by_size, result, progress=None, file_timeout: float = 0
+) -> list[frozenset[str]]:
     groups: list[frozenset[str]] = []
     for size, paths in by_size.items():
         if len(paths) < 2 or size == 0:
@@ -419,7 +480,12 @@ def _report_duplicates(by_size, result, progress=None) -> list[frozenset[str]]:
         for path in paths:
             if progress:
                 progress(path, HASHING)
-            digest = _hash(path)
+            try:
+                with _time_limit(file_timeout):
+                    digest = _hash(path)
+            except FileTimeout:
+                result.issues.append(_timeout_issue(path, file_timeout))
+                continue
             if digest:
                 by_hash[digest].append(path)
         for group in by_hash.values():

@@ -271,3 +271,58 @@ def test_tracked_key_memory_stays_bounded():
     tracemalloc.stop()
     assert len(tracked) == n
     assert used / n < 120, f"{used / n:.0f} bytes per tracked resource key"
+
+
+def test_a_file_that_never_finishes_reading_does_not_wedge_the_scan(mods, monkeypatch):
+    # A read blocked in the kernel (stalled cloud mount, sleeping drive) used
+    # to hang the whole scan on one file.
+    import time as _time
+
+    def never_returns(*args, **kwargs):
+        _time.sleep(30)
+
+    monkeypatch.setattr(scanner.dbpf, "read_package", never_returns)
+    (mods / "stuck.package").write_bytes(factories.make_package())
+    (mods / "later.txt").write_text("x")
+
+    started = _time.monotonic()
+    result = scanner.scan(str(mods), file_timeout=0.5)
+    elapsed = _time.monotonic() - started
+
+    assert elapsed < 5, "scan should abandon the file, not wait for it"
+    assert "read-timeout" in codes(result)
+    # The rest of the folder is still reported.
+    assert "clutter" in codes(result)
+
+
+def test_timeout_issue_names_the_file_and_explains_why(mods, monkeypatch):
+    import time as _time
+
+    monkeypatch.setattr(
+        scanner.dbpf, "read_package", lambda *a, **k: _time.sleep(30)
+    )
+    (mods / "sleepy.package").write_bytes(factories.make_package())
+    result = scanner.scan(str(mods), file_timeout=0.5)
+    issue = [i for i in result.issues if i.code == "read-timeout"][0]
+    assert issue.path.endswith("sleepy.package")
+    assert "iCloud" in issue.fix
+
+
+def test_hashing_phase_also_survives_an_unreadable_file(mods, monkeypatch):
+    import time as _time
+
+    data = factories.make_package([factories.key()])
+    (mods / "a.package").write_bytes(data)
+    (mods / "b.package").write_bytes(data)
+    monkeypatch.setattr(scanner, "_hash", lambda p: _time.sleep(30))
+
+    started = _time.monotonic()
+    result = scanner.scan(str(mods), file_timeout=0.5)
+    assert _time.monotonic() - started < 5
+    assert "read-timeout" in codes(result)
+
+
+def test_timeout_of_zero_waits_indefinitely(mods):
+    # Opting out has to actually opt out; the guard must not fire on its own.
+    (mods / "a.package").write_bytes(factories.make_package([factories.key()]))
+    assert "read-timeout" not in codes(scanner.scan(str(mods), file_timeout=0))
