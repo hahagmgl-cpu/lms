@@ -15,6 +15,10 @@ INFO = "info"
 
 _SEVERITY_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
 
+# Phases reported to a progress callback.
+SCANNING = "scanning"
+HASHING = "hashing"
+
 # The game only walks so far down into Mods. Anything deeper is never loaded,
 # no matter how healthy the file itself is.
 MAX_PACKAGE_DEPTH = 5
@@ -91,7 +95,10 @@ def scan(
 ) -> ScanResult:
     """Scan a Mods folder.
 
-    progress, if given, is called with each file path as it is examined.
+    progress, if given, is called as progress(path, phase) for each file as it
+    is examined. Phase is one of "scanning" or "hashing" -- hashing runs after
+    the walk and can take a while on its own, so it reports separately rather
+    than leaving the caller looking at a frozen counter.
     """
     root = os.path.abspath(root)
     if not os.path.isdir(root):
@@ -109,7 +116,7 @@ def scan(
         for name in sorted(filenames):
             path = os.path.join(dirpath, name)
             if progress:
-                progress(path)
+                progress(path, SCANNING)
             _check_file(
                 path,
                 root,
@@ -123,7 +130,7 @@ def scan(
 
     duplicate_groups: list[frozenset[str]] = []
     if check_duplicates:
-        duplicate_groups = _report_duplicates(by_size, result)
+        duplicate_groups = _report_duplicates(by_size, result, progress)
     if check_conflicts:
         _report_conflicts(collisions, result, max_conflicts, duplicate_groups)
     return result
@@ -362,13 +369,15 @@ def _check_other(path, name, ext, result):
         )
 
 
-def _report_duplicates(by_size, result) -> list[frozenset[str]]:
+def _report_duplicates(by_size, result, progress=None) -> list[frozenset[str]]:
     groups: list[frozenset[str]] = []
     for size, paths in by_size.items():
         if len(paths) < 2 or size == 0:
             continue
         by_hash: dict[str, list[str]] = defaultdict(list)
         for path in paths:
+            if progress:
+                progress(path, HASHING)
             digest = _hash(path)
             if digest:
                 by_hash[digest].append(path)

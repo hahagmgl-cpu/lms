@@ -100,16 +100,37 @@ def main(argv: list[str] | None = None) -> int:
     return 1 if result.errors else 0
 
 
-def _make_progress():
-    state = {"n": 0}
+# A file this size takes long enough to read that the counter would look stuck
+# if we waited for the next batch to redraw.
+_SLOW_FILE_BYTES = 20 * 1024 * 1024
 
-    def progress(path: str) -> None:
-        state["n"] += 1
-        if state["n"] % 25 == 0:
-            name = os.path.basename(path)[:60]
-            print(f"\r\033[Kchecked {state['n']} files... {name}", end="", file=sys.stderr)
+
+def _make_progress():
+    state = {"scanning": 0, "hashing": 0}
+
+    def progress(path: str, phase: str) -> None:
+        state[phase] += 1
+        n = state[phase]
+        # Redraw every 25 files, and always before a big file so the name on
+        # screen is the one actually being worked on.
+        if n % 25 and _size(path) < _SLOW_FILE_BYTES:
+            return
+        name = os.path.basename(path)[:60]
+        label = (
+            f"checked {n} files"
+            if phase == scanner.SCANNING
+            else f"comparing duplicates ({n})"
+        )
+        print(f"\r\033[K{label}... {name}", end="", file=sys.stderr, flush=True)
 
     return progress
+
+
+def _size(path: str) -> int:
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
 
 
 def _write(target: str, text: str) -> None:

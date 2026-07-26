@@ -189,8 +189,21 @@ def test_progress_callback_sees_every_file(mods):
     (mods / "a.package").write_bytes(factories.make_package())
     (mods / "b.txt").write_text("x")
     seen = []
-    scanner.scan(str(mods), progress=seen.append)
-    assert sorted(os.path.basename(p) for p in seen) == ["a.package", "b.txt"]
+    scanner.scan(str(mods), progress=lambda p, phase: seen.append((p, phase)))
+    assert sorted(os.path.basename(p) for p, _ in seen) == ["a.package", "b.txt"]
+    assert {phase for _, phase in seen} == {scanner.SCANNING}
+
+
+def test_progress_reports_the_hashing_phase(mods):
+    # Hashing runs after the walk, so it has to report separately or the
+    # caller's counter looks frozen.
+    data = factories.make_package([factories.key()])
+    (mods / "a.package").write_bytes(data)
+    (mods / "b.package").write_bytes(data)
+    seen = []
+    scanner.scan(str(mods), progress=lambda p, phase: seen.append((p, phase)))
+    hashed = [p for p, phase in seen if phase == scanner.HASHING]
+    assert sorted(os.path.basename(p) for p in hashed) == ["a.package", "b.package"]
 
 
 def test_missing_folder_raises(tmp_path):
